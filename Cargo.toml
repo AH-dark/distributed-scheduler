@@ -1,0 +1,20 @@
+[package]
+name = "distributed-scheduler"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+
+redis_driver = ["dep:redis"]
+
+[dependencies]
+thiserror = "1.0"
+tsuki-scheduler = { version = "0.1.1", features = ["tokio"] }
+tokio = { version = "1.38", features = ["macros", "rt-multi-thread", "time"] }
+async-trait = "0.1"
+log = "0.4"
+md5 = "0.7.0"
+
+redis = { version = "0.25", optional = true, features = ["tokio-rustls-comp"] }
+uuid = { version = "1.8.0", features = ["v4"] }

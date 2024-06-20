@@ -47,8 +47,8 @@ impl NodePool {
             nodes,
         ).await
     }
-    
-    async fn start(&mut self) -> Result<(), Error> {
+
+    pub async fn start(&mut self) -> Result<(), Error> {
         self.driver.start().await?;
         self.node_id = self.driver.node_id();
         self.update_hash_ring(self.driver.get_nodes().await?).await?;
@@ -94,7 +94,7 @@ impl NodePool {
     }
 
     /// Check if the job should be executed on the current node.
-    async fn check_job_available(&self, job_name: String) -> Result<bool, Error> {
+    pub async fn check_job_available(&self, job_name: String) -> Result<bool, Error> {
         let hash = self.hash.read().await;
         match hash.get(&job_name) {
             Some(node) => Ok(node == &self.node_id),

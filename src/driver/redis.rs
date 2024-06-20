@@ -37,8 +37,8 @@ impl Driver for RedisDriver {
         Ok(())
     }
 
-    async fn node_id(&self) -> Result<&str, Box<dyn std::error::Error>> {
-        Ok(&self.node_id)
+    fn node_id(&self) -> String {
+        self.node_id.clone()
     }
 
     async fn get_nodes(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {

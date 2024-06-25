@@ -2,6 +2,10 @@
 name = "distributed-scheduler"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/AH-dark/distributed-scheduler.git"
+authors = ["AH-dark <ahdark0428@gmail.com>"]
+readme = "README.md"
+license = "AGPL-3"
 
 [features]
 default = ["redis_driver"]

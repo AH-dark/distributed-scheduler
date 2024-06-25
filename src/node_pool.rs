@@ -54,6 +54,15 @@ impl NodePool {
         Ok(())
     }
 
+    /// Check if the job should be executed on the current node.
+    pub async fn check_job_available(&self, job_name: &str) -> Result<bool, Error> {
+        let hash = self.hash.read().await;
+        match hash.get(&job_name) {
+            Some(node) => Ok(node == &self.node_id),
+            None => Err(Error::NoNodeAvailable),
+        }
+    }
+
     pub async fn stop(&self) {
         self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
     }
@@ -103,15 +112,6 @@ pub async fn start(node_pool: Arc<NodePool>) -> Result<(), Error> {
     });
 
     Ok(())
-}
-
-/// Check if the job should be executed on the current node.
-pub async fn check_job_available(node_pool: &NodePool, job_name: &str) -> Result<bool, Error> {
-    let hash = node_pool.hash.read().await;
-    match hash.get(&job_name) {
-        Some(node) => Ok(node == &node_pool.node_id),
-        None => Err(Error::NoNodeAvailable),
-    }
 }
 
 async fn update_hash_ring(

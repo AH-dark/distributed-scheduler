@@ -1,5 +1,6 @@
 [package]
 name = "distributed-scheduler"
+description = "A distributed cronjob library"
 version = "0.1.0"
 edition = "2021"
 repository = "https://github.com/AH-dark/distributed-scheduler.git"

@@ -55,7 +55,7 @@ impl<'a> Cron<'a> {
 
                 tokio::task::spawn_blocking(|| async move {
                     // check if the job is available
-                    if node_pool::check_job_available(&np, &job_name).await.is_ok_and(|b| b) {
+                    if np.check_job_available(&job_name).await.is_ok_and(|b| b) {
                         run();
                     }
                 });
@@ -94,7 +94,7 @@ impl<'a> Cron<'a> {
                 // spawn the async job
                 tokio::task::spawn_blocking(|| async move {
                     // check if the job is available
-                    if node_pool::check_job_available(&np, &job_name)
+                    if np.check_job_available(&job_name)
                         .await
                         .is_ok_and(|is_this_node| is_this_node) {
                         run().await.expect("Failed to run async job, runtime error");

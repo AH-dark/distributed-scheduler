@@ -1,0 +1,10 @@
+[package]
+name = "distributed-scheduler-example"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+distributed-scheduler = { path = ".." }
+redis = { version = "0.25", features = ["tokio-rustls-comp"] }
+tokio = { version = "1", features = ["full"] }
+job_scheduler = "1.2.1"

@@ -16,6 +16,6 @@ async-trait = "0.1"
 log = "0.4"
 md5 = "0.7.0"
 hashring = "0.3.5"
+uuid = { version = "1.9.1", features = ["v4"] }
 
 redis = { version = "0.25", optional = true, features = ["tokio-rustls-comp"] }
-uuid = { version = "1.8.0", features = ["v4"] }

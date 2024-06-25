@@ -27,12 +27,12 @@ pub enum Error {
 }
 
 impl NodePool {
-    pub fn new(driver: Arc<dyn Driver>) -> Self {
+    pub fn new<T: Driver + 'static>(driver: T) -> Self {
         Self {
             node_id: String::new(),
             pre_nodes: RwLock::new(Vec::new()),
             hash: RwLock::new(hashring::HashRing::new()),
-            driver,
+            driver: Arc::new(driver),
             state_lock: AtomicBool::new(false),
             stop: AtomicBool::new(false),
         }

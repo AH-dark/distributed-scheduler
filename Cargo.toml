@@ -6,7 +6,7 @@ edition = "2021"
 repository = "https://github.com/AH-dark/distributed-scheduler.git"
 authors = ["AH-dark <ahdark0428@gmail.com>"]
 readme = "README.md"
-license = "AGPL-3"
+license = "AGPL-3.0-or-later"
 
 [features]
 default = ["redis_driver"]

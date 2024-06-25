@@ -6,16 +6,16 @@ use tokio::sync::RwLock;
 
 use crate::driver::Driver;
 
+#[derive(Debug)]
 pub struct NodePool {
-    service_name: String,
     node_id: String,
 
-    pre_nodes: Arc<RwLock<Vec<String>>>,
-    hash: Arc<RwLock<hashring::HashRing<String>>>,
+    pre_nodes: RwLock<Vec<String>>,
+    hash: RwLock<hashring::HashRing<String>>,
     driver: Arc<dyn Driver>,
 
-    state_lock: Arc<AtomicBool>,
-    stop: Arc<AtomicBool>,
+    state_lock: AtomicBool,
+    stop: AtomicBool,
 }
 
 #[derive(Debug, Error)]
@@ -27,89 +27,100 @@ pub enum Error {
 }
 
 impl NodePool {
-    pub fn new(service_name: String, driver: Arc<dyn Driver>) -> Self {
+    pub fn new(driver: Arc<dyn Driver>) -> Self {
         Self {
-            service_name,
             node_id: String::new(),
-            pre_nodes: Arc::new(RwLock::new(Vec::new())),
-            hash: Arc::new(RwLock::new(hashring::HashRing::new())),
+            pre_nodes: RwLock::new(Vec::new()),
+            hash: RwLock::new(hashring::HashRing::new()),
             driver,
-            state_lock: Arc::new(AtomicBool::new(false)),
-            stop: Arc::new(AtomicBool::new(false)),
+            state_lock: AtomicBool::new(false),
+            stop: AtomicBool::new(false),
         }
     }
 
-    async fn update_hash_ring(&self, nodes: Vec<String>) -> Result<(), Error> {
-        update_hash_ring(
-            self.pre_nodes.clone(),
-            self.state_lock.clone(),
-            self.hash.clone(),
-            nodes,
-        ).await
-    }
-
-    pub async fn start(&mut self) -> Result<(), Error> {
+    pub async fn init(&mut self) -> Result<(), Error> {
         self.driver.start().await?;
         self.node_id = self.driver.node_id();
-        self.update_hash_ring(self.driver.get_nodes().await?).await?;
 
-        tokio::spawn({
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
-            let pre_nodes = self.pre_nodes.clone();
-            let state_lock = self.state_lock.clone();
-            let hash = self.hash.clone();
-            let driver = self.driver.clone();
-            let stop = self.stop.clone();
+        // Update the hash ring
+        let mut pre_nodes = self.pre_nodes.write().await;
+        let mut hash = self.hash.write().await;
 
-            let error_time = AtomicU8::new(0);
+        update_hash_ring(&mut pre_nodes, &self.state_lock, &mut hash, &self.driver.get_nodes().await?).await?;
 
-            async move {
-                loop {
-                    interval.tick().await;
-                    if stop.load(std::sync::atomic::Ordering::SeqCst) {
-                        break;
-                    }
-
-                    let nodes = match driver.get_nodes().await {
-                        Ok(nodes) => nodes,
-                        Err(_) => continue,
-                    };
-
-                    update_hash_ring(pre_nodes.clone(), state_lock.clone(), hash.clone(), nodes)
-                        .await
-                        .map_err(|e| {
-                            log::error!("Failed to update hash ring: {:?}", e);
-                            error_time.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                        })
-                        .ok();
-
-                    if error_time.load(std::sync::atomic::Ordering::SeqCst) >= 5 {
-                        panic!("Failed to update hash ring 5 times")
-                    }
-                }
-            }
-        });
+        drop(pre_nodes);
+        drop(hash);
 
         Ok(())
     }
 
-    /// Check if the job should be executed on the current node.
-    pub async fn check_job_available(&self, job_name: String) -> Result<bool, Error> {
-        let hash = self.hash.read().await;
-        match hash.get(&job_name) {
-            Some(node) => Ok(node == &self.node_id),
-            None => Err(Error::NoNodeAvailable),
+    pub async fn stop(&self) {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+impl Drop for NodePool {
+    #[allow(unused_must_use)]
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+pub async fn start(node_pool: Arc<NodePool>) -> Result<(), Error> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        let error_time = AtomicU8::new(0);
+
+        loop {
+            interval.tick().await;
+            if node_pool.stop.load(std::sync::atomic::Ordering::SeqCst) {
+                return;
+            }
+
+            // independent ownership
+            {
+                let nodes = match node_pool.driver.get_nodes().await {
+                    Ok(nodes) => nodes,
+                    Err(_) => continue,
+                };
+
+                let mut pre_nodes = node_pool.pre_nodes.write().await;
+                let mut hash = node_pool.hash.write().await;
+
+                update_hash_ring(&mut pre_nodes, &node_pool.state_lock, &mut hash, &nodes)
+                    .await
+                    .map_err(|e| {
+                        log::error!("Failed to update hash ring: {:?}", e);
+                        error_time.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    })
+                    .ok();
+            }
+
+            if error_time.load(std::sync::atomic::Ordering::SeqCst) >= 5 {
+                panic!("Failed to update hash ring 5 times")
+            }
         }
+    });
+
+    Ok(())
+}
+
+/// Check if the job should be executed on the current node.
+pub async fn check_job_available(node_pool: &NodePool, job_name: &str) -> Result<bool, Error> {
+    let hash = node_pool.hash.read().await;
+    match hash.get(&job_name) {
+        Some(node) => Ok(node == &node_pool.node_id),
+        None => Err(Error::NoNodeAvailable),
     }
 }
 
 async fn update_hash_ring(
-    pre_nodes: Arc<RwLock<Vec<String>>>,
-    state_lock: Arc<AtomicBool>,
-    hash: Arc<RwLock<hashring::HashRing<String>>>,
-    nodes: Vec<String>,
+    pre_nodes: &mut Vec<String>,
+    state_lock: &AtomicBool,
+    hash: &mut hashring::HashRing<String>,
+    nodes: &Vec<String>,
 ) -> Result<(), Error> {
-    if equal_ring(&nodes, &pre_nodes.read().await) {
+    if equal_ring(&nodes, pre_nodes) {
         return Ok(());
     }
 
@@ -119,12 +130,11 @@ async fn update_hash_ring(
     }
 
     // Update the pre_nodes
-    pre_nodes.write().await.clone_from(&nodes);
+    pre_nodes.clone_from(nodes);
 
-    let mut hash = hash.write().await;
     *hash = hashring::HashRing::new();
     for node in nodes {
-        hash.add(node);
+        hash.add(node.clone());
     }
 
     // Unlock the state

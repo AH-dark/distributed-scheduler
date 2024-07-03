@@ -171,6 +171,7 @@ name = "distributed-scheduler"
 version = "1.0.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "hashring",
  "job_scheduler",
  "log",

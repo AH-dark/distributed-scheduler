@@ -5,6 +5,9 @@ mod utils;
 #[cfg(feature = "redis_driver")]
 pub mod redis;
 
+#[cfg(feature = "redis_driver")]
+pub mod redis_zset;
+
 #[async_trait::async_trait]
 pub trait Driver: Send + Sync + Debug {
     fn node_id(&self) -> String;

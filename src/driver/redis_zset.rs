@@ -1,3 +1,4 @@
+use std::ops::Sub;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
@@ -6,7 +7,7 @@ use redis::AsyncCommands;
 use super::{Driver, utils};
 
 #[derive(Debug)]
-pub struct RedisDriver {
+pub struct RedisZSetDriver {
     con: redis::aio::MultiplexedConnection,
 
     service_name: String,
@@ -25,7 +26,7 @@ pub enum Error {
     EmptyNodeId,
 }
 
-impl RedisDriver {
+impl RedisZSetDriver {
     pub async fn new(client: redis::Client, service_name: &str, node_id: &str) -> Result<Self, Error> {
         if service_name.is_empty() {
             return Err(Error::EmptyServiceName);
@@ -47,21 +48,17 @@ impl RedisDriver {
 
 
 #[async_trait::async_trait]
-impl Driver for RedisDriver {
+impl Driver for RedisZSetDriver {
     fn node_id(&self) -> String {
         self.node_id.clone()
     }
 
     async fn get_nodes(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let pattern = utils::get_key_prefix(&self.service_name) + "*";
+        let key = utils::get_zset_key(&self.service_name);
 
         let mut con = self.con.clone();
-        let mut res = con.scan_match(pattern).await?;
-
-        let mut nodes: Vec<String> = Vec::new();
-        while let Some(key) = res.next_item().await {
-            nodes.push(key);
-        }
+        let min = chrono::Utc::now().sub(chrono::Duration::seconds(self.timeout as i64)).timestamp(); // current timestamp - timeout
+        let nodes: Vec<String> = con.zrangebyscore(key, min, "+inf").await?;
         Ok(nodes)
     }
 
@@ -78,12 +75,12 @@ impl Driver for RedisDriver {
         // start the heartbeat
         tokio::spawn({
             let con = self.con.clone();
+            let service_name = self.service_name.clone();
             let node_id = self.node_id.clone();
-            let timeout = self.timeout;
             let started = self.started.clone();
 
             async move {
-                heartbeat(&node_id, timeout, con, started)
+                heartbeat(&service_name, &node_id, con, started)
                     .await
                     .expect("Failed to start scheduler driver heartbeat")
             }
@@ -93,7 +90,7 @@ impl Driver for RedisDriver {
     }
 }
 
-impl Drop for RedisDriver {
+impl Drop for RedisZSetDriver {
     fn drop(&mut self) {
         self.started.store(false, std::sync::atomic::Ordering::SeqCst);
     }
@@ -101,8 +98,12 @@ impl Drop for RedisDriver {
 
 /// Register the node in the redis
 ///
-async fn register_node(node_id: &str, timeout: u64, con: &mut redis::aio::MultiplexedConnection) -> Result<(), Box<dyn std::error::Error>> {
-    con.set_ex(node_id, node_id, timeout).await?;
+async fn register_node(service_name: &str, node_id: &str, con: &mut redis::aio::MultiplexedConnection) -> Result<(), Box<dyn std::error::Error>> {
+    con.zadd(
+        utils::get_zset_key(service_name),
+        node_id,
+        chrono::Utc::now().timestamp(),
+    ).await?;
     Ok(())
 }
 
@@ -120,7 +121,7 @@ async fn register_node(node_id: &str, timeout: u64, con: &mut redis::aio::Multip
 ///
 /// * `Result<(), Box<dyn std::error::Error>` - The result of the function
 ///
-async fn heartbeat(node_id: &str, timeout: u64, con: redis::aio::MultiplexedConnection, started: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
+async fn heartbeat(service_name: &str, node_id: &str, con: redis::aio::MultiplexedConnection, started: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
     let mut con = con;
     let mut error_time = 0;
@@ -137,7 +138,7 @@ async fn heartbeat(node_id: &str, timeout: u64, con: redis::aio::MultiplexedConn
         interval.tick().await;
 
         // register the node
-        register_node(node_id, timeout, &mut con).await
+        register_node(service_name, node_id, &mut con).await
             .map_err(|e| {
                 error_time += 1;
                 log::error!("Failed to register node: {:?}", e);

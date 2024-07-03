@@ -21,7 +21,7 @@ The scheduler is composed of a number of components that work together to schedu
 ## Available Drivers
 
 - [x] Redis (default)
-- [ ] Redis (Z-SET)
+- [x] Redis (Z-SET)
 - [ ] Etcd
 
 ## Usage

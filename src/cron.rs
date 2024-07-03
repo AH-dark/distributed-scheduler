@@ -28,6 +28,7 @@ async fn run_cron<'a>(job_scheduler: Arc<RwLock<job_scheduler::JobScheduler<'a>>
 }
 
 impl<'a> Cron<'a> {
+    /// Create a new cron with the given node pool.
     pub async fn new(mut np: node_pool::NodePool) -> Result<Self, node_pool::Error> {
         np.init().await?;
 
@@ -38,6 +39,7 @@ impl<'a> Cron<'a> {
         })
     }
 
+    /// Start the cron, blocking the current thread.
     pub async fn start(&self) {
         let np = self.node_pool.clone();
 

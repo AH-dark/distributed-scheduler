@@ -158,3 +158,56 @@ fn equal_ring(a: &[String], b: &[String]) -> bool {
 
     a_sorted == pre_nodes_sorted
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_update_hash_ring() {
+        let mut pre_nodes = Vec::new();
+        let state_lock = AtomicBool::new(false);
+        let mut hash = hashring::HashRing::new();
+
+        let nodes = vec!["node1".to_string(), "node2".to_string()];
+
+        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes).await.unwrap();
+        assert_eq!(pre_nodes, nodes);
+        assert_eq!(hash.get(&"test"), Some(&"node2".to_string()));
+
+        let nodes = vec!["node1".to_string(), "node2".to_string(), "node3".to_string()];
+
+        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes).await.unwrap();
+        assert_eq!(pre_nodes, nodes);
+        assert_eq!(hash.get(&"test"), Some(&"node2".to_string()));
+
+        let nodes = vec!["node1".to_string(), "node3".to_string()];
+
+        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes).await.unwrap();
+        assert_eq!(pre_nodes, nodes);
+        assert_eq!(hash.get(&"test"), Some(&"node3".to_string()));
+
+        let nodes = vec!["node1".to_string(), "node3".to_string()];
+
+        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes).await.unwrap();
+        assert_eq!(pre_nodes, nodes);
+        assert_eq!(hash.get(&"test"), Some(&"node3".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_equal_ring() {
+        let a = vec!["node1".to_string(), "node2".to_string()];
+        let b = vec!["node1".to_string(), "node2".to_string()];
+
+        assert_eq!(equal_ring(&a, &b), true);
+
+        let a = vec!["node1".to_string(), "node2".to_string()];
+        let b = vec!["node2".to_string(), "node1".to_string()];
+
+        assert_eq!(equal_ring(&a, &b), true);
+
+        let a = vec!["node1".to_string(), "node2".to_string()];
+        let b = vec!["node1".to_string(), "node3".to_string()];
+        assert_eq!(equal_ring(&a, &b), false);
+    }
+}

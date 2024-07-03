@@ -6,8 +6,7 @@ mod utils;
 pub mod redis;
 
 #[async_trait::async_trait]
-pub(crate) trait Driver: Send + Sync + Debug {
-    async fn init(&mut self, service_name: String) -> Result<(), Box<dyn std::error::Error>>;
+pub trait Driver: Send + Sync + Debug {
     fn node_id(&self) -> String;
     async fn get_nodes(&self) -> Result<Vec<String>, Box<dyn std::error::Error>>;
 

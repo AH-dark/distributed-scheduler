@@ -27,6 +27,7 @@ pub enum Error {
 }
 
 impl NodePool {
+    /// Create a new node pool with the given driver.
     pub fn new<T: Driver + 'static>(driver: T) -> Self {
         Self {
             node_id: String::new(),
@@ -38,6 +39,43 @@ impl NodePool {
         }
     }
 
+    /// Start the node pool, blocking the current thread.
+    pub async fn start(self: Arc<Self>) -> Result<(), Error> {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+        let error_time = AtomicU8::new(0);
+
+        loop {
+            interval.tick().await;
+            if self.stop.load(std::sync::atomic::Ordering::SeqCst) {
+                return Ok(());
+            }
+
+            // independent ownership
+            {
+                let nodes = match self.driver.get_nodes().await {
+                    Ok(nodes) => nodes,
+                    Err(_) => continue,
+                };
+
+                let mut pre_nodes = self.pre_nodes.write().await;
+                let mut hash = self.hash.write().await;
+
+                update_hash_ring(&mut pre_nodes, &self.state_lock, &mut hash, &nodes)
+                    .await
+                    .map_err(|e| {
+                        log::error!("Failed to update hash ring: {:?}", e);
+                        error_time.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    })
+                    .ok();
+            }
+
+            if error_time.load(std::sync::atomic::Ordering::SeqCst) >= 5 {
+                panic!("Failed to update hash ring 5 times")
+            }
+        }
+    }
+
+    /// Initialize the node pool.
     pub(crate) async fn init(&mut self) -> Result<(), Error> {
         self.driver.start().await?;
         self.node_id = self.driver.node_id();
@@ -58,7 +96,8 @@ impl NodePool {
     pub(crate) async fn check_job_available(&self, job_name: &str) -> Result<bool, Error> {
         let hash = self.hash.read().await;
         match hash.get(&job_name) {
-            Some(node) => Ok(node == &self.node_id),
+            Some(node) if node == &self.node_id => Ok(true),
+            Some(_) => Ok(false),
             None => Err(Error::NoNodeAvailable),
         }
     }
@@ -75,54 +114,17 @@ impl Drop for NodePool {
     }
 }
 
-pub async fn start(node_pool: Arc<NodePool>) -> Result<(), Error> {
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
-        let error_time = AtomicU8::new(0);
-
-        loop {
-            interval.tick().await;
-            if node_pool.stop.load(std::sync::atomic::Ordering::SeqCst) {
-                return;
-            }
-
-            // independent ownership
-            {
-                let nodes = match node_pool.driver.get_nodes().await {
-                    Ok(nodes) => nodes,
-                    Err(_) => continue,
-                };
-
-                let mut pre_nodes = node_pool.pre_nodes.write().await;
-                let mut hash = node_pool.hash.write().await;
-
-                update_hash_ring(&mut pre_nodes, &node_pool.state_lock, &mut hash, &nodes)
-                    .await
-                    .map_err(|e| {
-                        log::error!("Failed to update hash ring: {:?}", e);
-                        error_time.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    })
-                    .ok();
-            }
-
-            if error_time.load(std::sync::atomic::Ordering::SeqCst) >= 5 {
-                panic!("Failed to update hash ring 5 times")
-            }
-        }
-    });
-
-    Ok(())
-}
-
 async fn update_hash_ring(
     pre_nodes: &mut Vec<String>,
     state_lock: &AtomicBool,
     hash: &mut hashring::HashRing<String>,
     nodes: &Vec<String>,
 ) -> Result<(), Error> {
-    if equal_ring(&nodes, pre_nodes) {
+    if equal_ring(nodes, pre_nodes) {
         return Ok(());
     }
+
+    log::info!("Nodes detected, updating hash ring, pre_nodes: {:?}, now_nodes: {:?}", pre_nodes, nodes);
 
     // Lock the state
     if state_lock.compare_exchange(false, true, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst).is_err() {

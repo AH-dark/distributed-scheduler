@@ -4,8 +4,9 @@ pub fn get_key_prefix(service_name: &str) -> String {
     format!("{}:{}:", GLOBAL_KEY_PREFIX, service_name)
 }
 
+#[cfg(feature = "driver-redis")]
 pub fn get_zset_key(service_name: &str) -> String {
-    format!("{}:{}:zset", GLOBAL_KEY_PREFIX, service_name)
+    format!("{}:{}", GLOBAL_KEY_PREFIX, service_name)
 }
 
 #[cfg(test)]
@@ -18,7 +19,8 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "driver-redis")]
     fn test_get_zset_key() {
-        assert_eq!(get_zset_key("test"), "distributed-scheduler:test:zset");
+        assert_eq!(get_zset_key("test"), "distributed-scheduler:test");
     }
 }

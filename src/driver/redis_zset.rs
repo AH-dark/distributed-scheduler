@@ -6,7 +6,9 @@ use redis::AsyncCommands;
 
 use super::{Driver, utils};
 
-#[derive(Debug)]
+const DEFAULT_TIMEOUT: u64 = 3;
+
+#[derive(Clone, Debug)]
 pub struct RedisZSetDriver {
     con: redis::aio::MultiplexedConnection,
 
@@ -41,8 +43,13 @@ impl RedisZSetDriver {
             service_name: service_name.into(),
             node_id: utils::get_key_prefix(service_name) + node_id,
             started: Arc::new(AtomicBool::new(false)),
-            timeout: 5,
+            timeout: DEFAULT_TIMEOUT,
         })
+    }
+
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
+        self.timeout = timeout;
+        self
     }
 }
 
@@ -62,7 +69,7 @@ impl Driver for RedisZSetDriver {
         Ok(nodes)
     }
 
-    async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // check if the driver has already started
         if self.started.load(std::sync::atomic::Ordering::SeqCst) {
             log::warn!("Driver has already started");

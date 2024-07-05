@@ -20,9 +20,9 @@ The scheduler is composed of a number of components that work together to schedu
 
 ## Available Drivers
 
-- [x] Redis (default)
+- [x] Redis (Key Scan)
 - [x] Redis (Z-SET)
-- [ ] Etcd
+- [x] Etcd (Lease)
 
 ## Usage
 

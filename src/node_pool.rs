@@ -28,15 +28,24 @@ pub enum Error {
 
 impl NodePool {
     /// Create a new node pool with the given driver.
-    pub fn new<T: Driver + 'static>(driver: T) -> Self {
-        Self {
-            node_id: String::new(),
-            pre_nodes: RwLock::new(Vec::new()),
-            hash: RwLock::new(hashring::HashRing::new()),
+    pub async fn new<T: Driver + 'static>(mut driver: T) -> Result<Self, Error> {
+        driver.start().await?;
+
+        // Update the hash ring
+        let mut pre_nodes = Vec::new();
+        let mut hash = hashring::HashRing::new();
+        let state_lock = AtomicBool::new(false);
+
+        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &driver.get_nodes().await?).await?;
+
+        Ok(Self {
+            node_id: driver.node_id(),
+            pre_nodes: RwLock::new(pre_nodes),
+            hash: RwLock::new(hash),
             driver: Arc::new(driver),
-            state_lock: AtomicBool::new(false),
+            state_lock,
             stop: AtomicBool::new(false),
-        }
+        })
     }
 
     /// Start the node pool, blocking the current thread.
@@ -75,23 +84,6 @@ impl NodePool {
         }
     }
 
-    /// Initialize the node pool.
-    pub(crate) async fn init(&mut self) -> Result<(), Error> {
-        self.driver.start().await?;
-        self.node_id = self.driver.node_id();
-
-        // Update the hash ring
-        let mut pre_nodes = self.pre_nodes.write().await;
-        let mut hash = self.hash.write().await;
-
-        update_hash_ring(&mut pre_nodes, &self.state_lock, &mut hash, &self.driver.get_nodes().await?).await?;
-
-        drop(pre_nodes);
-        drop(hash);
-
-        Ok(())
-    }
-
     /// Check if the job should be executed on the current node.
     pub(crate) async fn check_job_available(&self, job_name: &str) -> Result<bool, Error> {
         let hash = self.hash.read().await;
@@ -121,6 +113,7 @@ async fn update_hash_ring(
     nodes: &Vec<String>,
 ) -> Result<(), Error> {
     if equal_ring(nodes, pre_nodes) {
+        log::trace!("Nodes are equal, skipping update, nodes: {:?}", nodes);
         return Ok(());
     }
 

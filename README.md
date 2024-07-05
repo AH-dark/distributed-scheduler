@@ -1,5 +1,9 @@
 # Distributed Scheduler
 
+[![Crates.io](https://img.shields.io/crates/v/distributed-scheduler.svg)](https://crates.io/crates/distributed-scheduler)
+[![License](https://img.shields.io/github/license/AH-dark/distributed-scheduler)](LICENSE)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/AH-dark/distributed-scheduler/.github%2Fworkflows%2Frust.yml)
+
 This is a distributed scheduler that can be used to schedule tasks on a cluster of machines. The scheduler is
 implemented in Rust and uses the tokio library for asynchronous IO. The scheduler is designed to be fault-tolerant
 and can recover from failures of the scheduler itself or the machines in the cluster.

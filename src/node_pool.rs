@@ -113,6 +113,7 @@ async fn update_hash_ring(
     nodes: &Vec<String>,
 ) -> Result<(), Error> {
     if equal_ring(nodes, pre_nodes) {
+        log::trace!("Nodes are equal, skipping update, nodes: {:?}", nodes);
         return Ok(());
     }
 

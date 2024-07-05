@@ -56,8 +56,8 @@ impl EtcdDriver {
 
         Ok(Self {
             client: Arc::new(Mutex::new(client)),
+            node_id: utils::get_key_prefix(service_name) + node_id,
             service_name: service_name.into(),
-            node_id: node_id.into(),
             watcher: None,
             lease_keeper: None,
             node_list: Arc::new(RwLock::new(HashSet::new())),
@@ -96,8 +96,6 @@ impl Driver for EtcdDriver {
             self.watcher = Some(watcher);
             let node_list = self.node_list.clone();
             tokio::spawn(async move {
-                log::info!("Watching for changes");
-
                 loop {
                     match watch_stream.message().await {
                         Ok(Some(resp)) => {
@@ -108,13 +106,9 @@ impl Driver for EtcdDriver {
                                 };
 
                                 match event.event_type() {
-                                    EventType::Put => {
-                                        node_list.write().await.insert(key.into());
-                                    }
-                                    EventType::Delete => {
-                                        node_list.write().await.remove(key);
-                                    }
-                                }
+                                    EventType::Put => node_list.write().await.insert(key.into()),
+                                    EventType::Delete => node_list.write().await.remove(key),
+                                };
                             }
                         }
                         Ok(None) => panic!("Watch stream closed"),
@@ -138,18 +132,23 @@ impl Driver for EtcdDriver {
 
             // spawn a task to keep the lease alive
             tokio::spawn(async move {
+                log::info!("Starting keep alive");
+
                 loop {
                     match ka_stream.message().await {
-                        Ok(Some(_)) => {}
+                        Ok(Some(r)) => log::debug!("Keep alive response: {:?}", r),
                         Ok(None) => panic!("Keep alive stream closed"),
                         Err(e) => panic!("Keep alive error: {:?}", e),
                     }
                 }
             });
 
+            if let Some(keeper) = self.lease_keeper.as_mut() {
+                keeper.keep_alive().await?;
+            }
+
             // put the node key
-            let k = utils::get_key_prefix(&self.service_name) + &self.node_id;
-            let res = client.put(k.as_str(), k.as_str(), Some(PutOptions::new().with_lease(lease.id()))).await?;
+            let res = client.put(self.node_id.as_str(), self.node_id.as_str(), Some(PutOptions::new().with_lease(lease.id()))).await?;
             log::debug!("Put result: {:?}", res);
         }
 
@@ -167,11 +166,8 @@ impl Drop for EtcdDriver {
 
         if let Some(keeper) = self.lease_keeper.take() {
             let client = self.client.clone();
-            let key = utils::get_key_prefix(&self.service_name) + &self.node_id;
-
             tokio::spawn(async move {
                 client.lock().await.lease_revoke(keeper.id()).await.expect("Failed to revoke lease");
-                client.lock().await.delete(key, None).await.expect("Failed to delete node key");
             });
         }
     }

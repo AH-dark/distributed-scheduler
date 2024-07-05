@@ -62,7 +62,7 @@ impl Driver for RedisZSetDriver {
         Ok(nodes)
     }
 
-    async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // check if the driver has already started
         if self.started.load(std::sync::atomic::Ordering::SeqCst) {
             log::warn!("Driver has already started");

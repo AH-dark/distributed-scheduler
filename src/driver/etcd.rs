@@ -9,6 +9,7 @@ use super::{Driver, utils};
 
 const DEFAULT_LEASE_TTL: i64 = 3;
 
+#[derive(Clone)]
 pub struct EtcdDriver {
     client: Arc<Mutex<Client>>,
 

@@ -8,7 +8,7 @@ use super::{Driver, utils};
 
 const DEFAULT_TIMEOUT: u64 = 3;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RedisZSetDriver {
     con: redis::aio::MultiplexedConnection,
 

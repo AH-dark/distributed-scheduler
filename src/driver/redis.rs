@@ -5,7 +5,7 @@ use redis::AsyncCommands;
 
 use super::{Driver, utils};
 
-const DEFAULT_TIMEOUT: u64 = 5;
+const DEFAULT_TIMEOUT: u64 = 3;
 
 #[derive(Debug)]
 pub struct RedisDriver {

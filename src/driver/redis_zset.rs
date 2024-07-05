@@ -6,6 +6,8 @@ use redis::AsyncCommands;
 
 use super::{Driver, utils};
 
+const DEFAULT_TIMEOUT: u64 = 3;
+
 #[derive(Debug)]
 pub struct RedisZSetDriver {
     con: redis::aio::MultiplexedConnection,
@@ -41,8 +43,13 @@ impl RedisZSetDriver {
             service_name: service_name.into(),
             node_id: utils::get_key_prefix(service_name) + node_id,
             started: Arc::new(AtomicBool::new(false)),
-            timeout: 5,
+            timeout: DEFAULT_TIMEOUT,
         })
+    }
+
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
+        self.timeout = timeout;
+        self
     }
 }
 

@@ -7,7 +7,7 @@ use tokio::sync::{Mutex, RwLock};
 
 use super::{Driver, utils};
 
-const ETCD_DEFAULT_LEASE_TTL: i64 = 5;
+const DEFAULT_LEASE_TTL: i64 = 3;
 
 pub struct EtcdDriver {
     client: Arc<Mutex<Client>>,
@@ -17,6 +17,8 @@ pub struct EtcdDriver {
 
     stop: Arc<AtomicBool>,
     node_list: Arc<RwLock<HashSet<String>>>,
+
+    lease_ttl: i64,
 }
 
 impl std::fmt::Debug for EtcdDriver {
@@ -60,7 +62,14 @@ impl EtcdDriver {
             service_name: service_name.into(),
             stop: Arc::new(AtomicBool::new(true)),
             node_list: Arc::new(RwLock::new(HashSet::new())),
+            lease_ttl: DEFAULT_LEASE_TTL,
         })
+    }
+
+    /// Set the timeout for the driver.
+    pub fn with_timeout(mut self, timeout: i64) -> Self {
+        self.lease_ttl = timeout;
+        self
     }
 }
 
@@ -131,7 +140,7 @@ impl Driver for EtcdDriver {
             log::info!("Registering node: {}", self.node_id);
 
             // grant a lease for the node key
-            let lease = client.lease_grant(ETCD_DEFAULT_LEASE_TTL, None).await?;
+            let lease = client.lease_grant(self.lease_ttl, None).await?;
             let lease_id = lease.id();
 
             // keep the lease alive

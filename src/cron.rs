@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::future::Future;
 use std::sync::Arc;
 
 use job_scheduler::{Schedule, Uuid};
@@ -102,9 +103,10 @@ impl<'a> Cron<'a> {
     /// * `schedule` - The schedule of the job
     /// * `run` - The async function to run
     ///
-    pub async fn add_async_job<F>(&self, job_name: &str, schedule: Schedule, run: F) -> Result<(), Error>
+    pub async fn add_async_job<F, Fut>(&self, job_name: &str, schedule: Schedule, run: F) -> Result<(), Error>
     where
-        F: 'static + Sync + Send + Fn() -> tokio::task::JoinHandle<()>,
+        F: 'static + Sync + Send + Fn() -> Fut,
+        Fut: Future<Output=Result<(), Box<dyn std::error::Error>>> + Send,
     {
         let run = Arc::new(run);
 

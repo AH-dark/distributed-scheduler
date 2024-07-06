@@ -9,7 +9,7 @@ use crate::node_pool;
 pub struct Cron<'a> {
     node_pool: Arc<node_pool::NodePool>,
     jobs: Mutex<HashMap<String, Uuid>>,
-    cron: Arc<RwLock<job_scheduler::JobScheduler<'a>>>,
+    cron: Arc<Mutex<job_scheduler::JobScheduler<'a>>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -18,11 +18,11 @@ pub enum Error {
     NodePool(#[from] node_pool::Error),
 }
 
-async fn run_cron<'a>(job_scheduler: Arc<RwLock<job_scheduler::JobScheduler<'a>>>) {
+async fn run_cron<'a>(job_scheduler: Arc<Mutex<job_scheduler::JobScheduler<'a>>>) {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
     loop {
-        job_scheduler.write().await.tick();
+        job_scheduler.lock().await.tick();
         interval.tick().await;
     }
 }
@@ -33,7 +33,7 @@ impl<'a> Cron<'a> {
         Self {
             node_pool: Arc::new(np),
             jobs: Mutex::new(HashMap::new()),
-            cron: Arc::new(RwLock::new(job_scheduler::JobScheduler::new())),
+            cron: Arc::new(Mutex::new(job_scheduler::JobScheduler::new())),
         }
     }
 
@@ -57,7 +57,10 @@ impl<'a> Cron<'a> {
     /// * `schedule` - The schedule of the job
     /// * `run` - The function to run
     ///
-    pub async fn add_job<T>(&self, job_name: &str, schedule: Schedule, run: T) -> Result<(), Error> where T: 'static + Sync + Send + Fn() {
+    pub async fn add_job<T>(&self, job_name: &str, schedule: Schedule, run: T) -> Result<(), Error>
+    where
+        T: 'static + Sync + Send + Fn(),
+    {
         let run = Arc::new(run);
 
         let job = job_scheduler::Job::new(schedule, {
@@ -78,7 +81,7 @@ impl<'a> Cron<'a> {
                 });
             }
         });
-        let id = self.cron.write().await.add(job);
+        let id = self.cron.lock().await.add(job);
 
         let mut jobs = self.jobs.lock().await;
         jobs.insert(job_name.to_string(), id);
@@ -94,10 +97,13 @@ impl<'a> Cron<'a> {
     /// * `schedule` - The schedule of the job
     /// * `run` - The async function to run
     ///
-    pub async fn add_async_job<T>(&self, job_name: &str, schedule: Schedule, run: T) -> Result<(), Error> where T: 'static + Sync + Send + Fn() -> tokio::task::JoinHandle<()> {
+    pub async fn add_async_job<T>(&self, job_name: &str, schedule: Schedule, run: T) -> Result<(), Error>
+    where
+        T: 'static + Sync + Send + Fn() -> tokio::task::JoinHandle<()>,
+    {
         let run = Arc::new(run);
 
-        let mut cron = self.cron.write().await;
+        let mut cron = self.cron.lock().await;
         let id = cron.add(job_scheduler::Job::new(schedule, {
             let job_name = job_name.to_string();
             let np = self.node_pool.clone();
@@ -136,8 +142,7 @@ impl<'a> Cron<'a> {
     pub async fn remove_job(&self, job_name: &str) -> Result<(), Error> {
         let mut jobs = self.jobs.lock().await;
         if let Some(id) = jobs.remove(job_name) {
-            let mut cron = self.cron.write().await;
-            cron.remove(id);
+            self.cron.lock().await.remove(id);
         }
         drop(jobs);
 

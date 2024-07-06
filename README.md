@@ -27,6 +27,7 @@ The scheduler is composed of a number of components that work together to schedu
 - [x] Redis (Key Scan)
 - [x] Redis (Z-SET)
 - [x] Etcd (Lease)
+- [ ] Consul (KV)
 
 ## Usage
 
@@ -41,8 +42,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let np = distributed_schedular::node_pool::NodePool::new(driver);
     let cron = distributed_schedular::cron::Cron::new(np).await?;
 
-    cron.add_job("test", "1/10 * * * * *".parse().unwrap(), || {
-        println!("Hello, I run every 10 seconds");
+    cron.add_job("test", "* * * * * *".parse().unwrap(), || {
+        println!("Hello, I run every seconds");
     }).await?;
 
     Ok(())

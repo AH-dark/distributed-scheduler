@@ -1,6 +1,7 @@
 [package]
 name = "distributed-scheduler"
 description = "A distributed cronjob library"
+keywords = ["distributed", "scheduler", "cronjob", "consistent-hashing"]
 version = "2.1.0"
 edition = "2021"
 repository = "https://github.com/AH-dark/distributed-scheduler.git"
@@ -8,6 +9,11 @@ homepage = "https://github.com/AH-dark/distributed-scheduler"
 authors = ["AH-dark <ahdark0428@gmail.com>"]
 readme = "README.md"
 license = "AGPL-3.0-or-later"
+documentation = "https://docs.rs/distributed-scheduler/latest/"
+rust-version = "1.71.0"
+
+[package.metadata.docs.rs]
+features = ["full"]
 
 [features]
 full = ["driver-redis", "driver-etcd"]

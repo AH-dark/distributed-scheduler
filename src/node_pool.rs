@@ -6,16 +6,34 @@ use tokio::sync::RwLock;
 
 use crate::driver::Driver;
 
-#[derive(Debug)]
-pub struct NodePool {
+pub struct NodePool<D>
+where
+    D: Driver + Send + Sync,
+{
     node_id: String,
 
     pre_nodes: RwLock<Vec<String>>,
     hash: RwLock<hashring::HashRing<String>>,
-    driver: Arc<dyn Driver>,
+    driver: Arc<D>,
 
     state_lock: AtomicBool,
     stop: AtomicBool,
+}
+
+impl<D> std::fmt::Debug for NodePool<D>
+where
+    D: Driver + Send + Sync + std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NodePool")
+            .field("node_id", &self.node_id)
+            .field("pre_nodes", &self.pre_nodes)
+            .field("hash", &self.hash)
+            .field("driver", &self.driver)
+            .field("state_lock", &self.state_lock)
+            .field("stop", &self.stop)
+            .finish()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -26,9 +44,12 @@ pub enum Error {
     DriverError(#[from] Box<dyn std::error::Error>),
 }
 
-impl NodePool {
+impl<D> NodePool<D>
+where
+    D: Driver + Send + Sync,
+{
     /// Create a new node pool with the given driver.
-    pub async fn new<T: Driver + 'static>(mut driver: T) -> Result<Self, Error> {
+    pub async fn new(mut driver: D) -> Result<Self, Error> {
         driver.start().await?;
 
         // Update the hash ring
@@ -99,7 +120,10 @@ impl NodePool {
     }
 }
 
-impl Drop for NodePool {
+impl<D> Drop for NodePool<D>
+where
+    D: Driver + Send + Sync,
+{
     #[allow(unused_must_use)]
     fn drop(&mut self) {
         self.stop();

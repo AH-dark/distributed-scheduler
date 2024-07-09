@@ -3,12 +3,16 @@ use std::future::Future;
 use std::sync::Arc;
 
 use job_scheduler::{Schedule, Uuid};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
+use crate::driver::Driver;
 use crate::node_pool;
 
-pub struct Cron<'a> {
-    node_pool: Arc<node_pool::NodePool>,
+pub struct Cron<'a, D>
+where
+    D: Driver + Send + Sync,
+{
+    node_pool: Arc<node_pool::NodePool<D>>,
     jobs: Mutex<HashMap<String, Uuid>>,
     scheduler: Arc<Mutex<job_scheduler::JobScheduler<'a>>>,
 }
@@ -28,9 +32,12 @@ async fn run_scheduler<'a>(job_scheduler: Arc<Mutex<job_scheduler::JobScheduler<
     }
 }
 
-impl<'a> Cron<'a> {
+impl<'a, D> Cron<'a, D>
+where
+    D: Driver + Send + Sync + 'static,
+{
     /// Create a new cron with the given node pool.
-    pub async fn new(np: node_pool::NodePool) -> Self {
+    pub async fn new(np: node_pool::NodePool<D>) -> Self {
         Self {
             node_pool: Arc::new(np),
             jobs: Mutex::new(HashMap::new()),
@@ -152,7 +159,10 @@ impl<'a> Cron<'a> {
     }
 }
 
-impl<'a> Drop for Cron<'a> {
+impl<'a, D> Drop for Cron<'a, D>
+where
+    D: Driver + Send + Sync,
+{
     #[allow(unused_must_use)]
     fn drop(&mut self) {
         self.node_pool.stop();

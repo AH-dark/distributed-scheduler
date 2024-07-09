@@ -2,6 +2,7 @@ use std::ops::Sub;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use redis::aio::ConnectionLike;
 use redis::AsyncCommands;
 
 use super::{Driver, utils};
@@ -9,8 +10,11 @@ use super::{Driver, utils};
 const DEFAULT_TIMEOUT: u64 = 3;
 
 #[derive(Clone, Debug)]
-pub struct RedisZSetDriver {
-    con: redis::aio::MultiplexedConnection,
+pub struct RedisZSetDriver<C>
+where
+    C: ConnectionLike,
+{
+    con: C,
 
     service_name: String,
     node_id: String,
@@ -28,8 +32,18 @@ pub enum Error {
     EmptyNodeId,
 }
 
-impl RedisZSetDriver {
+impl RedisZSetDriver<redis::aio::MultiplexedConnection> {
     pub async fn new(client: redis::Client, service_name: &str, node_id: &str) -> Result<Self, Error> {
+        let con = client.get_multiplexed_tokio_connection().await?;
+        Self::new_with_con(con, service_name, node_id).await
+    }
+}
+
+impl<C> RedisZSetDriver<C>
+where
+    C: ConnectionLike,
+{
+    pub async fn new_with_con(con: C, service_name: &str, node_id: &str) -> Result<Self, Error> {
         if service_name.is_empty() {
             return Err(Error::EmptyServiceName);
         }
@@ -39,7 +53,7 @@ impl RedisZSetDriver {
         }
 
         Ok(Self {
-            con: client.get_multiplexed_async_connection().await?,
+            con,
             service_name: service_name.into(),
             node_id: utils::get_key_prefix(service_name) + node_id,
             started: Arc::new(AtomicBool::new(false)),
@@ -55,7 +69,10 @@ impl RedisZSetDriver {
 
 
 #[async_trait::async_trait]
-impl Driver for RedisZSetDriver {
+impl<C> Driver for RedisZSetDriver<C>
+where
+    C: ConnectionLike + Send + Sync + Clone + 'static,
+{
     fn node_id(&self) -> String {
         self.node_id.clone()
     }
@@ -97,7 +114,10 @@ impl Driver for RedisZSetDriver {
     }
 }
 
-impl Drop for RedisZSetDriver {
+impl<C> Drop for RedisZSetDriver<C>
+where
+    C: ConnectionLike,
+{
     fn drop(&mut self) {
         self.started.store(false, std::sync::atomic::Ordering::SeqCst);
     }
@@ -105,12 +125,8 @@ impl Drop for RedisZSetDriver {
 
 /// Register the node in the redis
 ///
-async fn register_node(service_name: &str, node_id: &str, con: &mut redis::aio::MultiplexedConnection) -> Result<(), Box<dyn std::error::Error>> {
-    con.zadd(
-        utils::get_zset_key(service_name),
-        node_id,
-        chrono::Utc::now().timestamp(),
-    ).await?;
+async fn register_node<C: ConnectionLike + Send>(service_name: &str, node_id: &str, con: &mut C, time: i64) -> Result<(), Box<dyn std::error::Error>> {
+    con.zadd(utils::get_zset_key(service_name), node_id, time).await?;
     Ok(())
 }
 
@@ -128,7 +144,7 @@ async fn register_node(service_name: &str, node_id: &str, con: &mut redis::aio::
 ///
 /// * `Result<(), Box<dyn std::error::Error>` - The result of the function
 ///
-async fn heartbeat(service_name: &str, node_id: &str, con: redis::aio::MultiplexedConnection, started: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
+async fn heartbeat<C: ConnectionLike + Send>(service_name: &str, node_id: &str, con: C, started: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
     let mut con = con;
     let mut error_time = 0;
@@ -145,7 +161,7 @@ async fn heartbeat(service_name: &str, node_id: &str, con: redis::aio::Multiplex
         interval.tick().await;
 
         // register the node
-        register_node(service_name, node_id, &mut con).await
+        register_node(service_name, node_id, &mut con, chrono::Utc::now().timestamp()).await
             .map_err(|e| {
                 error_time += 1;
                 log::error!("Failed to register node: {:?}", e);
@@ -161,3 +177,56 @@ async fn heartbeat(service_name: &str, node_id: &str, con: redis::aio::Multiplex
     log::info!("Heartbeat stopped");
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use redis_test::{MockCmd, MockRedisConnection};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_register_node_success() {
+        let service_name = "test-service";
+        let node_id = "test-node";
+        let ts = chrono::Utc::now().timestamp();
+
+        let mut mock_con = MockRedisConnection::new(vec![
+            MockCmd::new(
+                redis::cmd("ZADD").arg(utils::get_zset_key(service_name)).arg(ts).arg(node_id),
+                Ok(redis::Value::Okay),
+            ),
+        ]);
+
+        // Perform the node registration
+        let result = register_node(service_name, node_id, &mut mock_con, ts).await;
+
+        assert!(result.is_ok(), "Register node should be successful: {}", result.unwrap_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_nodes_success() {
+        let service_name = "test-service";
+        let node_id = "test-node";
+
+        let keys = ["node1", "node2", "node3"];
+        let keys_as_redis_value: Vec<redis::Value> = keys.iter().map(|k| redis::Value::Data(k.as_bytes().to_vec())).collect();
+
+        let mock_con = MockRedisConnection::new(vec![
+            MockCmd::new(
+                redis::cmd("ZRANGEBYSCORE")
+                    .arg(utils::get_zset_key(service_name))
+                    .arg(chrono::Utc::now().sub(chrono::Duration::seconds(DEFAULT_TIMEOUT as i64)).timestamp())
+                    .arg("+inf"),
+                Ok(redis::Value::Bulk(keys_as_redis_value)),
+            )
+        ]);
+
+        // Perform the node registration
+        let driver = RedisZSetDriver::new_with_con(mock_con, service_name, node_id).await.unwrap();
+        let result = driver.get_nodes().await;
+
+        assert!(result.is_ok(), "Get nodes should be successful: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), keys, "The nodes should match");
+    }
+}
+

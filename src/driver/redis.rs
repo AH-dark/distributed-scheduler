@@ -1,6 +1,8 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use redis::aio::ConnectionLike;
 use redis::AsyncCommands;
 
 use super::{Driver, utils};
@@ -8,8 +10,11 @@ use super::{Driver, utils};
 const DEFAULT_TIMEOUT: u64 = 3;
 
 #[derive(Clone, Debug)]
-pub struct RedisDriver {
-    con: redis::aio::MultiplexedConnection,
+pub struct RedisDriver<C>
+where
+    C: ConnectionLike,
+{
+    con: C,
 
     service_name: String,
     node_id: String,
@@ -27,8 +32,19 @@ pub enum Error {
     EmptyNodeId,
 }
 
-impl RedisDriver {
+impl RedisDriver<redis::aio::MultiplexedConnection> {
     pub async fn new(client: redis::Client, service_name: &str, node_id: &str) -> Result<Self, Error> {
+        let con = client.get_multiplexed_tokio_connection().await?;
+        Self::new_with_con(con, service_name, node_id).await
+    }
+}
+
+
+impl<C> RedisDriver<C>
+where
+    C: ConnectionLike,
+{
+    pub async fn new_with_con(con: C, service_name: &str, node_id: &str) -> Result<Self, Error> {
         if service_name.is_empty() {
             return Err(Error::EmptyServiceName);
         }
@@ -38,7 +54,7 @@ impl RedisDriver {
         }
 
         Ok(Self {
-            con: client.get_multiplexed_async_connection().await?,
+            con,
             service_name: service_name.into(),
             node_id: utils::get_key_prefix(service_name) + node_id,
             started: Arc::new(AtomicBool::new(false)),
@@ -58,7 +74,10 @@ impl RedisDriver {
 
 
 #[async_trait::async_trait]
-impl Driver for RedisDriver {
+impl<C> Driver for RedisDriver<C>
+where
+    C: ConnectionLike + Send + Sync + Clone + 'static,
+{
     fn node_id(&self) -> String {
         self.node_id.clone()
     }
@@ -104,7 +123,10 @@ impl Driver for RedisDriver {
     }
 }
 
-impl Drop for RedisDriver {
+impl<C> Drop for RedisDriver<C>
+where
+    C: ConnectionLike,
+{
     fn drop(&mut self) {
         self.started.store(false, std::sync::atomic::Ordering::SeqCst);
     }
@@ -112,7 +134,7 @@ impl Drop for RedisDriver {
 
 /// Register the node in the redis
 ///
-async fn register_node(node_id: &str, timeout: u64, con: &mut redis::aio::MultiplexedConnection) -> Result<(), Box<dyn std::error::Error>> {
+async fn register_node<C: ConnectionLike + Send>(node_id: &str, timeout: u64, con: &mut C) -> Result<(), Box<dyn std::error::Error>> {
     con.set_ex(node_id, node_id, timeout).await?;
     Ok(())
 }
@@ -131,7 +153,7 @@ async fn register_node(node_id: &str, timeout: u64, con: &mut redis::aio::Multip
 ///
 /// * `Result<(), Box<dyn std::error::Error>` - The result of the function
 ///
-async fn heartbeat(node_id: &str, timeout: u64, con: redis::aio::MultiplexedConnection, started: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
+async fn heartbeat<C: ConnectionLike + Send>(node_id: &str, timeout: u64, con: C, started: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
     let mut con = con;
     let mut error_time = 0;
@@ -163,4 +185,53 @@ async fn heartbeat(node_id: &str, timeout: u64, con: redis::aio::MultiplexedConn
 
     log::info!("Heartbeat stopped");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use redis_test::{MockCmd, MockRedisConnection};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_register_node_success() {
+        let node_id = "test-node";
+        let timeout = 10_u64;
+
+        let mut mock_con = MockRedisConnection::new(vec![
+            MockCmd::new(
+                redis::cmd("SETEX").arg(node_id).arg(timeout as usize).arg(node_id),
+                Ok(redis::Value::Okay),
+            ),
+        ]);
+
+        // Perform the node registration
+        let result = register_node(node_id, timeout, &mut mock_con).await;
+
+        assert!(result.is_ok(), "Node registration should be successful");
+    }
+
+    #[tokio::test]
+    async fn test_get_nodes_success() {
+        let service_name = "test-service";
+        let node_id = "test-node";
+        let pattern = utils::get_key_prefix(service_name) + "*";
+
+        let keys = ["test-service-node1", "test-service-node2", "test-service-node3"];
+        let keys_as_redis_values = keys.iter().map(|k| redis::Value::Data(k.to_string().into_bytes())).collect::<Vec<_>>();
+
+        let mock_con = MockRedisConnection::new(vec![
+            MockCmd::new(
+                redis::cmd("SCAN").arg("0").arg("MATCH").arg(&pattern),
+                Ok(redis::Value::Bulk(keys_as_redis_values)),
+            )
+        ]);
+
+        // Perform the node registration
+        let driver = RedisDriver::new_with_con(mock_con, service_name, node_id).await.unwrap();
+        let result = driver.get_nodes().await;
+
+        assert!(result.is_ok(), "Get nodes should be successful");
+        assert_eq!(result.unwrap(), keys, "The nodes should match");
+    }
 }

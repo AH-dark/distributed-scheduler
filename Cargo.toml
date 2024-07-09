@@ -14,7 +14,7 @@ rust-version = "1.71.0"
 exclude = [".*"]
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["driver-redis", "driver-etcd"]
 
 [features]
 full = ["driver-redis", "driver-etcd"]

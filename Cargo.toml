@@ -9,11 +9,12 @@ homepage = "https://github.com/AH-dark/distributed-scheduler"
 authors = ["AH-dark <ahdark0428@gmail.com>"]
 readme = "README.md"
 license = "AGPL-3.0-or-later"
-documentation = "https://docs.rs/distributed-scheduler/latest/"
+documentation = "https://docs.rs/distributed-scheduler"
 rust-version = "1.71.0"
+exclude = [".*"]
 
 [package.metadata.docs.rs]
-features = ["full"]
+all-features = true
 
 [features]
 full = ["driver-redis", "driver-etcd"]

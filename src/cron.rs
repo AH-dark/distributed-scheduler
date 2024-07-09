@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 use crate::driver::Driver;
 use crate::node_pool;
 
+/// The `Cron` struct is the main entry point for the library, providing the ability to add and remove jobs.
 pub struct Cron<'a, D>
 where
     D: Driver + Send + Sync,
@@ -23,6 +24,7 @@ pub enum Error {
     NodePool(#[from] node_pool::Error),
 }
 
+/// Run the scheduler in a separate task, return a Future
 async fn run_scheduler<'a>(job_scheduler: Arc<Mutex<job_scheduler::JobScheduler<'a>>>) {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 

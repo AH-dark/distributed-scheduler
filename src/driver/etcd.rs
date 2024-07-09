@@ -1,3 +1,5 @@
+/// Etcd driver implementation.
+
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -10,6 +12,7 @@ use super::{Driver, utils};
 const DEFAULT_LEASE_TTL: i64 = 3;
 
 #[derive(Clone)]
+/// Etcd driver, used to manage nodes in an etcd cluster.
 pub struct EtcdDriver {
     client: Arc<Mutex<Client>>,
 
@@ -80,6 +83,7 @@ impl Driver for EtcdDriver {
         self.node_id.clone()
     }
 
+    /// Read from local node list, because the node list is updated by a background task.
     async fn get_nodes(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         if self.stop.load(std::sync::atomic::Ordering::SeqCst) {
             return Err(Box::new(Error::DriverNotStarted));
@@ -88,6 +92,7 @@ impl Driver for EtcdDriver {
         Ok(self.node_list.read().await.iter().cloned().collect())
     }
 
+    /// Start a routine to watch for node changes and register the current node. Use lease to keep the node key alive.
     async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let mut client = self.client.lock().await;
         self.stop.store(false, std::sync::atomic::Ordering::SeqCst);

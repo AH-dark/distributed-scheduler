@@ -1,4 +1,3 @@
-use std::ops::Sub;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
@@ -77,15 +76,17 @@ where
         self.node_id.clone()
     }
 
+    /// Get the list of nodes from the redis server, use `ZRANGEBYSCORE` to get the latest nodes
     async fn get_nodes(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let key = utils::get_zset_key(&self.service_name);
 
         let mut con = self.con.clone();
-        let min = chrono::Utc::now().sub(chrono::Duration::seconds(self.timeout as i64)).timestamp(); // current timestamp - timeout
+        let min = (chrono::Utc::now() - chrono::Duration::seconds(self.timeout as i64)).timestamp(); // current timestamp - timeout
         let nodes: Vec<String> = con.zrangebyscore(key, min, "+inf").await?;
         Ok(nodes)
     }
 
+    /// Start a routine to send the heartbeat to the redis server
     async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // check if the driver has already started
         if self.started.load(std::sync::atomic::Ordering::SeqCst) {
@@ -123,7 +124,15 @@ where
     }
 }
 
-/// Register the node in the redis
+/// Register the node in the redis.
+/// Use redis command `ZADD` to add the node to the zset.
+///
+/// # Arguments
+///
+/// * `service_name` - The name of the service
+/// * `node_id` - The id of the node
+/// * `con` - The redis connection
+/// * `time` - The time to register the node
 ///
 async fn register_node<C: ConnectionLike + Send>(service_name: &str, node_id: &str, con: &mut C, time: i64) -> Result<(), Box<dyn std::error::Error>> {
     con.zadd(utils::get_zset_key(service_name), node_id, time).await?;
@@ -215,7 +224,7 @@ mod tests {
             MockCmd::new(
                 redis::cmd("ZRANGEBYSCORE")
                     .arg(utils::get_zset_key(service_name))
-                    .arg(chrono::Utc::now().sub(chrono::Duration::seconds(DEFAULT_TIMEOUT as i64)).timestamp())
+                    .arg((chrono::Utc::now() - chrono::Duration::seconds(DEFAULT_TIMEOUT as i64)).timestamp())
                     .arg("+inf"),
                 Ok(redis::Value::Bulk(keys_as_redis_value)),
             )

@@ -82,6 +82,7 @@ where
         self.node_id.clone()
     }
 
+    /// Scan the redis server to get the nodes
     async fn get_nodes(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let pattern = utils::get_key_prefix(&self.service_name) + "*";
 
@@ -95,6 +96,7 @@ where
         Ok(nodes)
     }
 
+    /// Start a routine to send heartbeat to the redis server
     async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // check if the driver has already started
         if self.started.load(std::sync::atomic::Ordering::SeqCst) {
@@ -133,6 +135,12 @@ where
 }
 
 /// Register the node in the redis
+///
+/// # Arguments
+///
+/// * `node_id` - The id of the node
+/// * `timeout` - The timeout of the node
+/// * `con` - The redis connection
 ///
 async fn register_node<C: ConnectionLike + Send>(node_id: &str, timeout: u64, con: &mut C) -> Result<(), Box<dyn std::error::Error>> {
     con.set_ex(node_id, node_id, timeout).await?;

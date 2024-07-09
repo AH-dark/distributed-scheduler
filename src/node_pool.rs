@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 
 use crate::driver::Driver;
 
+/// Node pool, used to manage nodes in a cluster.
 pub struct NodePool<D>
 where
     D: Driver + Send + Sync,
@@ -130,6 +131,15 @@ where
     }
 }
 
+/// Update the hash ring with the given nodes.
+///
+/// # Arguments
+///
+/// * `pre_nodes` - The previous nodes
+/// * `state_lock` - The state lock
+/// * `hash` - The hash ring
+/// * `nodes` - The new nodes
+///
 async fn update_hash_ring(
     pre_nodes: &mut Vec<String>,
     state_lock: &AtomicBool,
@@ -162,6 +172,7 @@ async fn update_hash_ring(
     Ok(())
 }
 
+/// Compare two rings.
 fn equal_ring(a: &[String], b: &[String]) -> bool {
     if a.len() != b.len() {
         return false;
@@ -216,15 +227,15 @@ mod tests {
         let a = vec!["node1".to_string(), "node2".to_string()];
         let b = vec!["node1".to_string(), "node2".to_string()];
 
-        assert_eq!(equal_ring(&a, &b), true);
+        assert!(equal_ring(&a, &b));
 
         let a = vec!["node1".to_string(), "node2".to_string()];
         let b = vec!["node2".to_string(), "node1".to_string()];
 
-        assert_eq!(equal_ring(&a, &b), true);
+        assert!(equal_ring(&a, &b));
 
         let a = vec!["node1".to_string(), "node2".to_string()];
         let b = vec!["node1".to_string(), "node3".to_string()];
-        assert_eq!(equal_ring(&a, &b), false);
+        assert!(!equal_ring(&a, &b));
     }
 }

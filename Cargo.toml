@@ -52,7 +52,7 @@ md5 = "0.7.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync"] }
 uuid = { version = "1", features = ["v4"] }
 
-etcd-client = { version = "0.13", optional = true }
+etcd-client = { version = "0.14", optional = true }
 redis = { version = "0.25", optional = true, features = ["tokio-comp"] }
 
 [dev-dependencies]

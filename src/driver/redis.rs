@@ -1,11 +1,11 @@
 use std::fmt::Debug;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use redis::aio::ConnectionLike;
 use redis::AsyncCommands;
 
-use super::{Driver, utils};
+use super::{utils, Driver};
 
 const DEFAULT_TIMEOUT: u64 = 3;
 
@@ -32,19 +32,11 @@ pub enum Error {
     EmptyNodeId,
 }
 
-impl RedisDriver<redis::aio::MultiplexedConnection> {
-    pub async fn new(client: redis::Client, service_name: &str, node_id: &str) -> Result<Self, Error> {
-        let con = client.get_multiplexed_tokio_connection().await?;
-        Self::new_with_con(con, service_name, node_id).await
-    }
-}
-
-
 impl<C> RedisDriver<C>
 where
     C: ConnectionLike,
 {
-    pub async fn new_with_con(con: C, service_name: &str, node_id: &str) -> Result<Self, Error> {
+    pub async fn new(con: C, service_name: &str, node_id: &str) -> Result<Self, Error> {
         if service_name.is_empty() {
             return Err(Error::EmptyServiceName);
         }
@@ -226,17 +218,17 @@ mod tests {
         let pattern = utils::get_key_prefix(service_name) + "*";
 
         let keys = ["test-service-node1", "test-service-node2", "test-service-node3"];
-        let keys_as_redis_values = keys.iter().map(|k| redis::Value::Data(k.to_string().into_bytes())).collect::<Vec<_>>();
+        let keys_as_redis_values = keys.iter().map(|k| redis::Value::BulkString(k.to_string().into_bytes())).collect::<Vec<_>>();
 
         let mock_con = MockRedisConnection::new(vec![
             MockCmd::new(
                 redis::cmd("SCAN").arg("0").arg("MATCH").arg(&pattern),
-                Ok(redis::Value::Bulk(keys_as_redis_values)),
+                Ok(redis::Value::Array(keys_as_redis_values)),
             )
         ]);
 
         // Perform the node registration
-        let driver = RedisDriver::new_with_con(mock_con, service_name, node_id).await.unwrap();
+        let driver = RedisDriver::new(mock_con, service_name, node_id).await.unwrap();
         let result = driver.get_nodes().await;
 
         assert!(result.is_ok(), "Get nodes should be successful");

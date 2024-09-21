@@ -1,10 +1,10 @@
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
+use super::{utils, Driver};
+use crate::driver::redis::RedisDriver;
 use redis::aio::ConnectionLike;
 use redis::AsyncCommands;
-
-use super::{Driver, utils};
 
 const DEFAULT_TIMEOUT: u64 = 3;
 
@@ -31,18 +31,11 @@ pub enum Error {
     EmptyNodeId,
 }
 
-impl RedisZSetDriver<redis::aio::MultiplexedConnection> {
-    pub async fn new(client: redis::Client, service_name: &str, node_id: &str) -> Result<Self, Error> {
-        let con = client.get_multiplexed_tokio_connection().await?;
-        Self::new_with_con(con, service_name, node_id).await
-    }
-}
-
 impl<C> RedisZSetDriver<C>
 where
     C: ConnectionLike,
 {
-    pub async fn new_with_con(con: C, service_name: &str, node_id: &str) -> Result<Self, Error> {
+    pub async fn new(con: C, service_name: &str, node_id: &str) -> Result<Self, Error> {
         if service_name.is_empty() {
             return Err(Error::EmptyServiceName);
         }
@@ -218,7 +211,7 @@ mod tests {
         let node_id = "test-node";
 
         let keys = ["node1", "node2", "node3"];
-        let keys_as_redis_value: Vec<redis::Value> = keys.iter().map(|k| redis::Value::Data(k.as_bytes().to_vec())).collect();
+        let keys_as_redis_value: Vec<redis::Value> = keys.iter().map(|k| redis::Value::BulkString(k.as_bytes().to_vec())).collect();
 
         let mock_con = MockRedisConnection::new(vec![
             MockCmd::new(
@@ -226,12 +219,12 @@ mod tests {
                     .arg(utils::get_zset_key(service_name))
                     .arg((chrono::Utc::now() - chrono::Duration::seconds(DEFAULT_TIMEOUT as i64)).timestamp())
                     .arg("+inf"),
-                Ok(redis::Value::Bulk(keys_as_redis_value)),
+                Ok(redis::Value::Array(keys_as_redis_value)),
             )
         ]);
 
         // Perform the node registration
-        let driver = RedisZSetDriver::new_with_con(mock_con, service_name, node_id).await.unwrap();
+        let driver = RedisZSetDriver::new(mock_con, service_name, node_id).await.unwrap();
         let result = driver.get_nodes().await;
 
         assert!(result.is_ok(), "Get nodes should be successful: {}", result.unwrap_err());

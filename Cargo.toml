@@ -44,7 +44,7 @@ required-features = ["driver-etcd"]
 [dependencies]
 async-trait = "0.1"
 chrono = "0.4"
-thiserror = "1.0"
+thiserror = "2.0"
 hashring = "0.3.6"
 job_scheduler = "1.2.1"
 log = "0.4"

@@ -115,7 +115,7 @@ where
     pub async fn add_async_job<F, Fut>(&self, job_name: &str, schedule: Schedule, run: F) -> Result<(), Error>
     where
         F: 'static + Sync + Send + Fn() -> Fut,
-        Fut: Future<Output=Result<(), Box<dyn std::error::Error>>> + Send,
+        Fut: Future<Output=()> + Send,
     {
         let run = Arc::new(run);
 
@@ -135,7 +135,7 @@ where
                     if np.check_job_available(&job_name)
                         .await
                         .is_ok_and(|is_this_node| is_this_node) {
-                        run().await.expect("Failed to run async job, runtime error");
+                        run().await;
                     }
                 });
             }

@@ -2,7 +2,7 @@
 name = "distributed-scheduler"
 description = "A distributed cronjob library"
 keywords = ["distributed", "scheduler", "cronjob", "consistent-hashing"]
-version = "2.1.4"
+version = "2.1.5"
 edition = "2021"
 repository = "https://github.com/AH-dark/distributed-scheduler.git"
 homepage = "https://github.com/AH-dark/distributed-scheduler"

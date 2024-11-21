@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8};
+use std::sync::Arc;
 
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -116,7 +116,7 @@ where
         }
     }
 
-    pub async fn stop(&self) {
+    pub fn stop(&self) {
         self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
     }
 }
@@ -125,7 +125,6 @@ impl<D> Drop for NodePool<D>
 where
     D: Driver + Send + Sync,
 {
-    #[allow(unused_must_use)]
     fn drop(&mut self) {
         self.stop();
     }

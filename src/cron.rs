@@ -161,11 +161,10 @@ where
     }
 }
 
-impl<'a, D> Drop for Cron<'a, D>
+impl<D> Drop for Cron<'_, D>
 where
     D: Driver + Send + Sync,
 {
-    #[allow(unused_must_use)]
     fn drop(&mut self) {
         self.node_pool.stop();
     }

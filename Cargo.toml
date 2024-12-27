@@ -48,12 +48,11 @@ thiserror = "2.0"
 hashring = "0.3.6"
 job_scheduler = "1.2.1"
 log = "0.4"
-md5 = "0.7.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync"] }
 uuid = { version = "1", features = ["v4"] }
 
 etcd-client = { version = "0.14", optional = true }
-redis = { version = "0.27.5", optional = true, features = ["tokio-comp"] }
+redis = { version = "0.27.6", optional = true, features = ["tokio-comp"] }
 
 [dev-dependencies]
 pretty_env_logger = "0.5"

@@ -1,9 +1,9 @@
-use std::fmt::Debug;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::{
+    fmt::Debug,
+    sync::{atomic::AtomicBool, Arc},
+};
 
-use redis::aio::ConnectionLike;
-use redis::AsyncCommands;
+use redis::{aio::ConnectionLike, AsyncCommands};
 
 use super::{utils, Driver};
 
@@ -36,7 +36,11 @@ impl<C> RedisDriver<C>
 where
     C: ConnectionLike,
 {
-    pub async fn new(con: C, service_name: &str, node_id: &str) -> Result<Self, Error> {
+    pub async fn new(
+        con: C,
+        service_name: &str,
+        node_id: &str,
+    ) -> Result<Self, Error> {
         if service_name.is_empty() {
             return Err(Error::EmptyServiceName);
         }
@@ -54,7 +58,10 @@ where
         })
     }
 
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
+    pub fn with_timeout(
+        mut self,
+        timeout: u64,
+    ) -> Self {
         self.timeout = timeout;
         self
     }
@@ -63,7 +70,6 @@ where
         self.timeout
     }
 }
-
 
 #[async_trait::async_trait]
 impl<C> Driver for RedisDriver<C>
@@ -133,8 +139,11 @@ where
 /// * `node_id` - The id of the node
 /// * `timeout` - The timeout of the node
 /// * `con` - The redis connection
-///
-async fn register_node<C: ConnectionLike + Send>(node_id: &str, timeout: u64, con: &mut C) -> Result<(), Box<dyn std::error::Error>> {
+async fn register_node<C: ConnectionLike + Send>(
+    node_id: &str,
+    timeout: u64,
+    con: &mut C,
+) -> Result<(), Box<dyn std::error::Error>> {
     con.set_ex(node_id, node_id, timeout).await?;
     Ok(())
 }
@@ -152,8 +161,12 @@ async fn register_node<C: ConnectionLike + Send>(node_id: &str, timeout: u64, co
 /// # Returns
 ///
 /// * `Result<(), Box<dyn std::error::Error>` - The result of the function
-///
-async fn heartbeat<C: ConnectionLike + Send>(node_id: &str, timeout: u64, con: C, started: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
+async fn heartbeat<C: ConnectionLike + Send>(
+    node_id: &str,
+    timeout: u64,
+    con: C,
+    started: Arc<AtomicBool>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
     let mut con = con;
     let mut error_time = 0;
@@ -170,7 +183,8 @@ async fn heartbeat<C: ConnectionLike + Send>(node_id: &str, timeout: u64, con: C
         interval.tick().await;
 
         // register the node
-        register_node(node_id, timeout, &mut con).await
+        register_node(node_id, timeout, &mut con)
+            .await
             .map_err(|e| {
                 error_time += 1;
                 log::error!("Failed to register node: {:?}", e);
@@ -198,12 +212,10 @@ mod tests {
         let node_id = "test-node";
         let timeout = 10_u64;
 
-        let mut mock_con = MockRedisConnection::new(vec![
-            MockCmd::new(
-                redis::cmd("SETEX").arg(node_id).arg(timeout as usize).arg(node_id),
-                Ok(redis::Value::Okay),
-            ),
-        ]);
+        let mut mock_con = MockRedisConnection::new(vec![MockCmd::new(
+            redis::cmd("SETEX").arg(node_id).arg(timeout as usize).arg(node_id),
+            Ok(redis::Value::Okay),
+        )]);
 
         // Perform the node registration
         let result = register_node(node_id, timeout, &mut mock_con).await;
@@ -218,14 +230,15 @@ mod tests {
         let pattern = utils::get_key_prefix(service_name) + "*";
 
         let keys = ["test-service-node1", "test-service-node2", "test-service-node3"];
-        let keys_as_redis_values = keys.iter().map(|k| redis::Value::BulkString(k.to_string().into_bytes())).collect::<Vec<_>>();
+        let keys_as_redis_values = keys
+            .iter()
+            .map(|k| redis::Value::BulkString(k.to_string().into_bytes()))
+            .collect::<Vec<_>>();
 
-        let mock_con = MockRedisConnection::new(vec![
-            MockCmd::new(
-                redis::cmd("SCAN").arg("0").arg("MATCH").arg(&pattern),
-                Ok(redis::Value::Array(keys_as_redis_values)),
-            )
-        ]);
+        let mock_con = MockRedisConnection::new(vec![MockCmd::new(
+            redis::cmd("SCAN").arg("0").arg("MATCH").arg(&pattern),
+            Ok(redis::Value::Array(keys_as_redis_values)),
+        )]);
 
         // Perform the node registration
         let driver = RedisDriver::new(mock_con, service_name, node_id).await.unwrap();

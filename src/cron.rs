@@ -1,14 +1,12 @@
-use std::collections::HashMap;
-use std::future::Future;
-use std::sync::Arc;
+use std::{collections::HashMap, future::Future, sync::Arc};
 
 use job_scheduler::{Schedule, Uuid};
 use tokio::sync::Mutex;
 
-use crate::driver::Driver;
-use crate::node_pool;
+use crate::{driver::Driver, node_pool};
 
-/// The `Cron` struct is the main entry point for the library, providing the ability to add and remove jobs.
+/// The `Cron` struct is the main entry point for the library, providing the ability to add and
+/// remove jobs.
 pub struct Cron<'a, D>
 where
     D: Driver + Send + Sync,
@@ -60,7 +58,11 @@ where
     }
 
     /// Register a job in the scheduler
-    async fn register_job(&self, job_name: &str, job: job_scheduler::Job<'a>) {
+    async fn register_job(
+        &self,
+        job_name: &str,
+        job: job_scheduler::Job<'a>,
+    ) {
         let mut cron = self.scheduler.lock().await;
         let id = cron.add(job);
         self.jobs.lock().await.insert(job_name.to_string(), id);
@@ -73,8 +75,12 @@ where
     /// * `job_name` - The unique name of the job
     /// * `schedule` - The schedule of the job
     /// * `run` - The function to run
-    ///
-    pub async fn add_job<F>(&self, job_name: &str, schedule: Schedule, run: F) -> Result<(), Error>
+    pub async fn add_job<F>(
+        &self,
+        job_name: &str,
+        schedule: Schedule,
+        run: F,
+    ) -> Result<(), Error>
     where
         F: 'static + Sync + Send + Fn(),
     {
@@ -159,8 +165,10 @@ where
     /// # Arguments
     ///
     /// * `job_name` - The unique name of the job
-    ///
-    pub async fn remove_job(&self, job_name: &str) -> Result<(), Error> {
+    pub async fn remove_job(
+        &self,
+        job_name: &str,
+    ) -> Result<(), Error> {
         if let Some(id) = self.jobs.lock().await.remove(job_name) {
             self.scheduler.lock().await.remove(id);
         }

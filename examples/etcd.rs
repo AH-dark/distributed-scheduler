@@ -15,7 +15,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     log::info!("Adding job");
     cron.add_job("test", "* * * * * *".parse().unwrap(), || {
         log::info!("Running job: {}", chrono::Utc::now());
-    }).await?;
+    })
+    .await?;
 
     log::info!("Starting cron");
     cron.start().await;

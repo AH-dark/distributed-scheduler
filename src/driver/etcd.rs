@@ -1,13 +1,11 @@
 /// Etcd driver implementation.
-
 use std::collections::HashSet;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::{atomic::AtomicBool, Arc};
 
 use etcd_client::*;
 use tokio::sync::{Mutex, RwLock};
 
-use super::{Driver, utils};
+use super::{utils, Driver};
 
 const DEFAULT_LEASE_TTL: i64 = 3;
 
@@ -26,9 +24,11 @@ pub struct EtcdDriver {
 }
 
 impl std::fmt::Debug for EtcdDriver {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f
-            .debug_struct("EtcdDriver")
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result {
+        f.debug_struct("EtcdDriver")
             .field("service_name", &self.service_name)
             .field("node_id", &self.node_id)
             .field("stop", &self.stop)
@@ -51,7 +51,11 @@ pub enum Error {
 
 impl EtcdDriver {
     /// Create a new etcd driver with the given client, service name, and node id.
-    pub async fn new(client: Client, service_name: &str, node_id: &str) -> Result<Self, Error> {
+    pub async fn new(
+        client: Client,
+        service_name: &str,
+        node_id: &str,
+    ) -> Result<Self, Error> {
         if service_name.is_empty() {
             return Err(Error::EmptyServiceName);
         }
@@ -71,7 +75,10 @@ impl EtcdDriver {
     }
 
     /// Set the timeout for the driver.
-    pub fn with_timeout(mut self, timeout: i64) -> Self {
+    pub fn with_timeout(
+        mut self,
+        timeout: i64,
+    ) -> Self {
         self.lease_ttl = timeout;
         self
     }
@@ -92,20 +99,33 @@ impl Driver for EtcdDriver {
         Ok(self.node_list.read().await.iter().cloned().collect())
     }
 
-    /// Start a routine to watch for node changes and register the current node. Use lease to keep the node key alive.
+    /// Start a routine to watch for node changes and register the current node. Use lease to keep
+    /// the node key alive.
     async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let mut client = self.client.lock().await;
         self.stop.store(false, std::sync::atomic::Ordering::SeqCst);
 
         // init node list
         let mut node_list = self.node_list.write().await;
-        for kv in client.get(utils::get_key_prefix(&self.service_name), Some(GetOptions::new().with_prefix())).await?.kvs() {
+        for kv in client
+            .get(
+                utils::get_key_prefix(&self.service_name),
+                Some(GetOptions::new().with_prefix()),
+            )
+            .await?
+            .kvs()
+        {
             node_list.insert(kv.key_str()?.into());
         }
 
         // watch for node changes
         {
-            let (mut watcher, mut watch_stream) = client.watch(utils::get_key_prefix(&self.service_name), Some(WatchOptions::new().with_prefix())).await?;
+            let (mut watcher, mut watch_stream) = client
+                .watch(
+                    utils::get_key_prefix(&self.service_name),
+                    Some(WatchOptions::new().with_prefix()),
+                )
+                .await?;
             let node_list = self.node_list.clone();
             let stop = self.stop.clone();
             tokio::spawn(async move {
@@ -160,7 +180,12 @@ impl Driver for EtcdDriver {
 
                 loop {
                     if stop.load(std::sync::atomic::Ordering::SeqCst) {
-                        inner_client.lock().await.lease_revoke(lease_id).await.expect("Failed to revoke lease");
+                        inner_client
+                            .lock()
+                            .await
+                            .lease_revoke(lease_id)
+                            .await
+                            .expect("Failed to revoke lease");
                         break;
                     }
 
@@ -173,7 +198,13 @@ impl Driver for EtcdDriver {
             });
 
             // put the node key
-            client.put(self.node_id.as_str(), self.node_id.as_str(), Some(PutOptions::new().with_lease(lease_id))).await?;
+            client
+                .put(
+                    self.node_id.as_str(),
+                    self.node_id.as_str(),
+                    Some(PutOptions::new().with_lease(lease_id)),
+                )
+                .await?;
         }
 
         Ok(())

@@ -1,5 +1,7 @@
-use std::sync::atomic::{AtomicBool, AtomicU8};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, AtomicU8},
+    Arc,
+};
 
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -25,7 +27,10 @@ impl<D> std::fmt::Debug for NodePool<D>
 where
     D: Driver + Send + Sync + std::fmt::Debug,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         f.debug_struct("NodePool")
             .field("node_id", &self.node_id)
             .field("pre_nodes", &self.pre_nodes)
@@ -107,7 +112,10 @@ where
     }
 
     /// Check if the job should be executed on the current node.
-    pub(crate) async fn check_job_available(&self, job_name: &str) -> Result<bool, Error> {
+    pub(crate) async fn check_job_available(
+        &self,
+        job_name: &str,
+    ) -> Result<bool, Error> {
         let hash = self.hash.read().await;
         match hash.get(&job_name) {
             Some(node) if node == &self.node_id => Ok(true),
@@ -138,7 +146,6 @@ where
 /// * `state_lock` - The state lock
 /// * `hash` - The hash ring
 /// * `nodes` - The new nodes
-///
 async fn update_hash_ring(
     pre_nodes: &mut Vec<String>,
     state_lock: &AtomicBool,
@@ -150,10 +157,22 @@ async fn update_hash_ring(
         return Ok(());
     }
 
-    log::info!("Nodes detected, updating hash ring, pre_nodes: {:?}, now_nodes: {:?}", pre_nodes, nodes);
+    log::info!(
+        "Nodes detected, updating hash ring, pre_nodes: {:?}, now_nodes: {:?}",
+        pre_nodes,
+        nodes
+    );
 
     // Lock the state
-    if state_lock.compare_exchange(false, true, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst).is_err() {
+    if state_lock
+        .compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        )
+        .is_err()
+    {
         return Ok(());
     }
 
@@ -172,7 +191,10 @@ async fn update_hash_ring(
 }
 
 /// Compare two rings.
-fn equal_ring(a: &[String], b: &[String]) -> bool {
+fn equal_ring(
+    a: &[String],
+    b: &[String],
+) -> bool {
     if a.len() != b.len() {
         return false;
     }
@@ -198,25 +220,33 @@ mod tests {
 
         let nodes = vec!["node1".to_string(), "node2".to_string()];
 
-        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes).await.unwrap();
+        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes)
+            .await
+            .unwrap();
         assert_eq!(pre_nodes, nodes);
         assert_eq!(hash.get(&"test"), Some(&"node2".to_string()));
 
         let nodes = vec!["node1".to_string(), "node2".to_string(), "node3".to_string()];
 
-        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes).await.unwrap();
+        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes)
+            .await
+            .unwrap();
         assert_eq!(pre_nodes, nodes);
         assert_eq!(hash.get(&"test"), Some(&"node2".to_string()));
 
         let nodes = vec!["node1".to_string(), "node3".to_string()];
 
-        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes).await.unwrap();
+        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes)
+            .await
+            .unwrap();
         assert_eq!(pre_nodes, nodes);
         assert_eq!(hash.get(&"test"), Some(&"node3".to_string()));
 
         let nodes = vec!["node1".to_string(), "node3".to_string()];
 
-        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes).await.unwrap();
+        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes)
+            .await
+            .unwrap();
         assert_eq!(pre_nodes, nodes);
         assert_eq!(hash.get(&"test"), Some(&"node3".to_string()));
     }

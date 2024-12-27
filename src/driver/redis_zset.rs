@@ -1,9 +1,11 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+
+use redis::{aio::ConnectionLike, AsyncCommands};
 
 use super::{utils, Driver};
-use redis::aio::ConnectionLike;
-use redis::AsyncCommands;
 
 const DEFAULT_TIMEOUT: u64 = 3;
 
@@ -35,7 +37,11 @@ impl<C> RedisZSetDriver<C>
 where
     C: ConnectionLike,
 {
-    pub async fn new(con: C, service_name: &str, node_id: &str) -> Result<Self, Error> {
+    pub async fn new(
+        con: C,
+        service_name: &str,
+        node_id: &str,
+    ) -> Result<Self, Error> {
         if service_name.is_empty() {
             return Err(Error::EmptyServiceName);
         }
@@ -54,7 +60,10 @@ where
         })
     }
 
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
+    pub fn with_timeout(
+        mut self,
+        timeout: u64,
+    ) -> Self {
         self.timeout = timeout;
         self
     }
@@ -137,15 +146,13 @@ where
 /// * `node_id` - The id of the node
 /// * `con` - The redis connection
 /// * `time` - The time to register the node
-///
 async fn register_node<C: ConnectionLike + Send>(
     service_name: &str,
     node_id: &str,
     con: &mut C,
     time: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    con.zadd(utils::get_zset_key(service_name), node_id, time)
-        .await?;
+    con.zadd(utils::get_zset_key(service_name), node_id, time).await?;
 
     Ok(())
 }
@@ -194,18 +201,13 @@ mod tests {
         let mock_con = MockRedisConnection::new(vec![MockCmd::new(
             redis::cmd("ZRANGEBYSCORE")
                 .arg(utils::get_zset_key(service_name))
-                .arg(
-                    (chrono::Utc::now() - chrono::Duration::seconds(DEFAULT_TIMEOUT as i64))
-                        .timestamp(),
-                )
+                .arg((chrono::Utc::now() - chrono::Duration::seconds(DEFAULT_TIMEOUT as i64)).timestamp())
                 .arg("+inf"),
             Ok(redis::Value::Array(keys_as_redis_value)),
         )]);
 
         // Perform the node registration
-        let driver = RedisZSetDriver::new(mock_con, service_name, node_id)
-            .await
-            .unwrap();
+        let driver = RedisZSetDriver::new(mock_con, service_name, node_id).await.unwrap();
         let result = driver.get_nodes().await;
 
         assert!(

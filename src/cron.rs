@@ -23,7 +23,7 @@ pub enum Error {
 }
 
 /// Run the scheduler in a separate task, return a Future
-async fn run_scheduler<'a>(job_scheduler: Arc<Mutex<job_scheduler::JobScheduler<'a>>>) {
+async fn run_scheduler(job_scheduler: Arc<Mutex<job_scheduler::JobScheduler<'_>>>) {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
     loop {

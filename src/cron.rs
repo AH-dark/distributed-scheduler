@@ -53,8 +53,8 @@ where
 
         tokio::select! {
             _ = run_scheduler(self.scheduler.clone()) => {},
-            val = np.start() => {
-                val.expect("Failed to start node pool");
+            Err(err) = np.start() => {
+                panic!("Failed to start node pool: {}", err);
             },
         }
     }
@@ -92,7 +92,9 @@ where
                 tokio::spawn(async move {
                     match np.check_job_available(&job_name).await {
                         Ok(is_this_node) if is_this_node => run(),
-                        Ok(_) => { log::trace!("Job is not available on this node") }
+                        Ok(_) => {
+                            log::trace!("Job is not available on this node")
+                        }
                         Err(e) => log::error!("Failed to check job availability: {}", e),
                     }
                 });
@@ -111,11 +113,15 @@ where
     /// * `job_name` - The unique name of the job
     /// * `schedule` - The schedule of the job
     /// * `run` - The async function to run
-    ///
-    pub async fn add_async_job<F, Fut>(&self, job_name: &str, schedule: Schedule, run: F) -> Result<(), Error>
+    pub async fn add_async_job<F, Fut>(
+        &self,
+        job_name: &str,
+        schedule: Schedule,
+        run: F,
+    ) -> Result<(), Error>
     where
         F: 'static + Sync + Send + Fn() -> Fut,
-        Fut: Future<Output=()> + Send,
+        Fut: Future<Output = ()> + Send,
     {
         let run = Arc::new(run);
 
@@ -132,9 +138,11 @@ where
                 // spawn the async job
                 tokio::spawn(async move {
                     // check if the job is available
-                    if np.check_job_available(&job_name)
+                    if np
+                        .check_job_available(&job_name)
                         .await
-                        .is_ok_and(|is_this_node| is_this_node) {
+                        .is_ok_and(|is_this_node| is_this_node)
+                    {
                         run().await;
                     }
                 });

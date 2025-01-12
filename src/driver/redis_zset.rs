@@ -146,12 +146,12 @@ where
 /// * `node_id` - The id of the node
 /// * `con` - The redis connection
 /// * `time` - The time to register the node
-async fn register_node<C: ConnectionLike + Send>(
+async fn register_node<C: ConnectionLike + Send + Sync>(
     service_name: &str,
     node_id: &str,
     con: &mut C,
     time: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), redis::RedisError> {
     con.zadd(utils::get_zset_key(service_name), node_id, time).await?;
 
     Ok(())

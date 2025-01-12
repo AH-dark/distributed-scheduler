@@ -139,11 +139,11 @@ where
 /// * `node_id` - The id of the node
 /// * `timeout` - The timeout of the node
 /// * `con` - The redis connection
-async fn register_node<C: ConnectionLike + Send>(
+async fn register_node<C: ConnectionLike + Send + Sync>(
     node_id: &str,
     timeout: u64,
     con: &mut C,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), redis::RedisError> {
     con.set_ex(node_id, node_id, timeout).await?;
     Ok(())
 }
@@ -161,7 +161,7 @@ async fn register_node<C: ConnectionLike + Send>(
 /// # Returns
 ///
 /// * `Result<(), Box<dyn std::error::Error>` - The result of the function
-async fn heartbeat<C: ConnectionLike + Send>(
+async fn heartbeat<C: ConnectionLike + Send + Sync>(
     node_id: &str,
     timeout: u64,
     con: C,

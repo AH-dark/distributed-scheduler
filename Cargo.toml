@@ -56,4 +56,4 @@ redis = { version = "0.28.1", optional = true, features = ["tokio-comp"] }
 
 [dev-dependencies]
 pretty_env_logger = "0.5"
-redis-test = { version = "0.8.0", features = ["aio"] }
+redis-test = { version = "0.9.0", features = ["aio"] }

@@ -2,7 +2,7 @@
 name = "distributed-scheduler"
 description = "A distributed cronjob library"
 keywords = ["distributed", "scheduler", "cronjob", "consistent-hashing"]
-version = "2.1.8"
+version = "2.1.9"
 edition = "2021"
 repository = "https://github.com/AH-dark/distributed-scheduler.git"
 homepage = "https://github.com/AH-dark/distributed-scheduler"
@@ -51,9 +51,9 @@ log = "0.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync"] }
 uuid = { version = "1", features = ["v4"] }
 
-etcd-client = { version = "0.14", optional = true }
-redis = { version = "0.29.0", optional = true, features = ["tokio-comp"] }
+etcd-client = { version = "*", optional = true }
+redis = { version = "*", optional = true, features = ["tokio-comp"] }
 
 [dev-dependencies]
 pretty_env_logger = "0.5"
-redis-test = { version = "0.9.0", features = ["aio"] }
+redis-test = { version = "*", features = ["aio"] }

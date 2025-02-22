@@ -51,9 +51,9 @@ log = "0.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync"] }
 uuid = { version = "1", features = ["v4"] }
 
-etcd-client = { version = "*", optional = true }
-redis = { version = "*", optional = true, features = ["tokio-comp"] }
+etcd-client = { version = ">=0.14, <1.0", optional = true }
+redis = { version = ">=0.26, <1.0", optional = true, features = ["tokio-comp"] }
 
 [dev-dependencies]
 pretty_env_logger = "0.5"
-redis-test = { version = "*", features = ["aio"] }
+redis-test = { version = ">= 0.7, <1.0", features = ["aio"] }

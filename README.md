@@ -26,6 +26,7 @@ The scheduler is composed of a number of components that work together to schedu
 - [x] Redis (Key Scan)
 - [x] Redis (Z-SET)
 - [x] Etcd (Lease)
+- [x] Local
 - [ ] Consul (KV)
 
 ## Usage

@@ -12,6 +12,9 @@ pub mod redis_zset;
 /// Driver based on Etcd
 pub mod etcd;
 
+/// Driver based on local node only
+pub mod local;
+
 #[async_trait::async_trait]
 /// The driver trait, which defines the node list management interface.
 pub trait Driver {

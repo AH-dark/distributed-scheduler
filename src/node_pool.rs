@@ -96,13 +96,15 @@ where
                 let mut pre_nodes = self.pre_nodes.write().await;
                 let mut hash = self.hash.write().await;
 
-                update_hash_ring(&mut pre_nodes, &self.state_lock, &mut hash, &nodes)
-                    .await
-                    .map_err(|e| {
-                        log::error!("Failed to update hash ring: {:?}", e);
+                match update_hash_ring(&mut pre_nodes, &self.state_lock, &mut hash, &nodes).await {
+                    Ok(_) => {
+                        error_time.store(0, std::sync::atomic::Ordering::SeqCst);
+                    }
+                    Err(_) => {
                         error_time.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    })
-                    .ok();
+                        log::error!("Failed to update hash ring");
+                    }
+                }
             }
 
             if error_time.load(std::sync::atomic::Ordering::SeqCst) >= 5 {

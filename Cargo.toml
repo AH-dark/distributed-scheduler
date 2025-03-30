@@ -17,9 +17,10 @@ exclude = [".github", ".idea"]
 features = ["driver-redis", "driver-etcd"]
 
 [features]
+default = []
 full = ["driver-redis", "driver-etcd"]
 
-driver-redis = ["dep:redis", "redis/tokio-comp"]
+driver-redis = ["dep:redis"]
 driver-etcd = ["dep:etcd-client"]
 
 [lib]
@@ -40,6 +41,11 @@ required-features = ["driver-redis"]
 name = "etcd"
 path = "examples/etcd.rs"
 required-features = ["driver-etcd"]
+
+[[example]]
+name = "local"
+path = "examples/local.rs"
+required-features = []
 
 [dependencies]
 async-trait = "0.1"

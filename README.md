@@ -8,8 +8,7 @@ This is a distributed scheduler that can be used to schedule tasks on a cluster 
 implemented in Rust and uses the tokio library for asynchronous IO. The scheduler is designed to be fault-tolerant
 and can recover from failures of the scheduler itself or the machines in the cluster.
 
-The current cronjob provider is [job_scheduler](https://github.com/lholden/job_scheduler), but it is no longer
-maintained, so I may replace it with another crate in the future.
+The current cronjob provider is [job_schedular_ng](https://github.com/BlackDex/job_scheduler).
 
 ## Architecture
 

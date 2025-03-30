@@ -79,12 +79,14 @@ impl<C> Driver for RedisZSetDriver<C>
 where
     C: ConnectionLike + Send + Sync + Clone + 'static,
 {
+    type Error = Error;
+
     fn node_id(&self) -> String {
         self.node_id.clone()
     }
 
     /// Get the list of nodes from the redis server, use `ZRANGEBYSCORE` to get the latest nodes
-    async fn get_nodes(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    async fn get_nodes(&self) -> Result<Vec<String>, Self::Error> {
         let key = utils::get_zset_key(&self.service_name);
 
         let mut con = self.con.clone();
@@ -94,7 +96,7 @@ where
     }
 
     /// Start a routine to send the heartbeat to the redis server
-    async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn start(&mut self) -> Result<(), Self::Error> {
         // check if the driver has already started
         if self.started.swap(true, Ordering::SeqCst) {
             return Ok(());

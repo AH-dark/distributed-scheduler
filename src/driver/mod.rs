@@ -18,13 +18,15 @@ pub mod local;
 #[async_trait::async_trait]
 /// The driver trait, which defines the node list management interface.
 pub trait Driver {
+    type Error: std::error::Error + Send + Sync + 'static;
+
     /// Get the local node id.
     fn node_id(&self) -> String;
     /// Get the node list in the cluster
-    async fn get_nodes(&self) -> Result<Vec<String>, Box<dyn std::error::Error>>;
+    async fn get_nodes(&self) -> Result<Vec<String>, Self::Error>;
 
     /// Start the driver, blocking the current thread.
-    async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn start(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
 }

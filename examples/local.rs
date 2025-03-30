@@ -1,9 +1,7 @@
-use std::error::Error;
-
 use distributed_scheduler::{cron, driver, node_pool};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
 
     let np = node_pool::NodePool::new(driver::local::LocalDriver).await?;

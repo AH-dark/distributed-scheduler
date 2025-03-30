@@ -76,12 +76,14 @@ impl<C> Driver for RedisDriver<C>
 where
     C: ConnectionLike + Send + Sync + Clone + 'static,
 {
+    type Error = Error;
+
     fn node_id(&self) -> String {
         self.node_id.clone()
     }
 
     /// Scan the redis server to get the nodes
-    async fn get_nodes(&self) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    async fn get_nodes(&self) -> Result<Vec<String>, Self::Error> {
         let pattern = utils::get_key_prefix(&self.service_name) + "*";
 
         let mut con = self.con.clone();
@@ -95,7 +97,7 @@ where
     }
 
     /// Start a routine to send heartbeat to the redis server
-    async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn start(&mut self) -> Result<(), Self::Error> {
         // check if the driver has already started
         if self.started.load(std::sync::atomic::Ordering::SeqCst) {
             log::warn!("Driver has already started");

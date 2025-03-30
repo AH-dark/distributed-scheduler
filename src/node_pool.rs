@@ -43,11 +43,14 @@ where
 }
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum Error<E>
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
     #[error("No node available")]
     NoNodeAvailable,
     #[error("Driver error: {0}")]
-    DriverError(#[from] Box<dyn std::error::Error>),
+    DriverError(#[from] E),
 }
 
 impl<D> NodePool<D>
@@ -55,7 +58,7 @@ where
     D: Driver + Send + Sync,
 {
     /// Create a new node pool with the given driver.
-    pub async fn new(mut driver: D) -> Result<Self, Error> {
+    pub async fn new(mut driver: D) -> Result<Self, Error<D::Error>> {
         driver.start().await?;
 
         // Update the hash ring
@@ -63,7 +66,7 @@ where
         let mut hash = hashring::HashRing::new();
         let state_lock = AtomicBool::new(false);
 
-        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &driver.get_nodes().await?).await?;
+        update_hash_ring::<D>(&mut pre_nodes, &state_lock, &mut hash, &driver.get_nodes().await?).await?;
 
         Ok(Self {
             node_id: driver.node_id(),
@@ -76,7 +79,7 @@ where
     }
 
     /// Start the node pool, blocking the current thread.
-    pub async fn start(self: Arc<Self>) -> Result<(), Error> {
+    pub async fn start(self: Arc<Self>) -> Result<(), Error<D::Error>> {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
         let error_time = AtomicU8::new(0);
 
@@ -96,7 +99,7 @@ where
                 let mut pre_nodes = self.pre_nodes.write().await;
                 let mut hash = self.hash.write().await;
 
-                match update_hash_ring(&mut pre_nodes, &self.state_lock, &mut hash, &nodes).await {
+                match update_hash_ring::<D>(&mut pre_nodes, &self.state_lock, &mut hash, &nodes).await {
                     Ok(_) => {
                         error_time.store(0, std::sync::atomic::Ordering::SeqCst);
                     }
@@ -117,7 +120,7 @@ where
     pub(crate) async fn check_job_available(
         &self,
         job_name: &str,
-    ) -> Result<bool, Error> {
+    ) -> Result<bool, Error<D::Error>> {
         let hash = self.hash.read().await;
         match hash.get(&job_name) {
             Some(node) if node == &self.node_id => Ok(true),
@@ -148,12 +151,15 @@ where
 /// * `state_lock` - The state lock
 /// * `hash` - The hash ring
 /// * `nodes` - The new nodes
-async fn update_hash_ring(
+async fn update_hash_ring<D>(
     pre_nodes: &mut Vec<String>,
     state_lock: &AtomicBool,
     hash: &mut hashring::HashRing<String>,
     nodes: &Vec<String>,
-) -> Result<(), Error> {
+) -> Result<(), Error<D::Error>>
+where
+    D: Driver + Send + Sync,
+{
     if equal_ring(nodes, pre_nodes) {
         log::trace!("Nodes are equal, skipping update, nodes: {:?}", nodes);
         return Ok(());
@@ -213,6 +219,7 @@ fn equal_ring(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::driver::local::LocalDriver;
 
     #[tokio::test]
     async fn test_update_hash_ring() {
@@ -222,7 +229,7 @@ mod tests {
 
         let nodes = vec!["node1".to_string(), "node2".to_string()];
 
-        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes)
+        update_hash_ring::<LocalDriver>(&mut pre_nodes, &state_lock, &mut hash, &nodes)
             .await
             .unwrap();
         assert_eq!(pre_nodes, nodes);
@@ -230,7 +237,7 @@ mod tests {
 
         let nodes = vec!["node1".to_string(), "node2".to_string(), "node3".to_string()];
 
-        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes)
+        update_hash_ring::<LocalDriver>(&mut pre_nodes, &state_lock, &mut hash, &nodes)
             .await
             .unwrap();
         assert_eq!(pre_nodes, nodes);
@@ -238,7 +245,7 @@ mod tests {
 
         let nodes = vec!["node1".to_string(), "node3".to_string()];
 
-        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes)
+        update_hash_ring::<LocalDriver>(&mut pre_nodes, &state_lock, &mut hash, &nodes)
             .await
             .unwrap();
         assert_eq!(pre_nodes, nodes);
@@ -246,7 +253,7 @@ mod tests {
 
         let nodes = vec!["node1".to_string(), "node3".to_string()];
 
-        update_hash_ring(&mut pre_nodes, &state_lock, &mut hash, &nodes)
+        update_hash_ring::<LocalDriver>(&mut pre_nodes, &state_lock, &mut hash, &nodes)
             .await
             .unwrap();
         assert_eq!(pre_nodes, nodes);

@@ -1,9 +1,7 @@
-use std::error::Error;
-
 use distributed_scheduler::{cron, driver, node_pool};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
 
     let etcd = etcd_client::Client::connect(vec!["localhost:2379"], None).await?;

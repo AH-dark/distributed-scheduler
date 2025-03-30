@@ -1,6 +1,6 @@
 use std::{collections::HashMap, future::Future, sync::Arc};
 
-use job_scheduler::{Schedule, Uuid};
+use job_scheduler_ng::{Schedule, Uuid};
 use tokio::sync::Mutex;
 
 use crate::{driver::Driver, node_pool};
@@ -13,7 +13,7 @@ where
 {
     node_pool: Arc<node_pool::NodePool<D>>,
     jobs: Mutex<HashMap<String, Uuid>>,
-    scheduler: Arc<Mutex<job_scheduler::JobScheduler<'a>>>,
+    scheduler: Arc<Mutex<job_scheduler_ng::JobScheduler<'a>>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -23,11 +23,11 @@ pub enum Error {
 }
 
 /// Run the scheduler in a separate task, return a Future
-async fn run_scheduler(job_scheduler: Arc<Mutex<job_scheduler::JobScheduler<'_>>>) {
+async fn run_scheduler(job_scheduler_ng: Arc<Mutex<job_scheduler_ng::JobScheduler<'_>>>) {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
     loop {
-        job_scheduler.lock().await.tick();
+        job_scheduler_ng.lock().await.tick();
         interval.tick().await;
     }
 }
@@ -41,7 +41,7 @@ where
         Self {
             node_pool: Arc::new(np),
             jobs: Mutex::new(HashMap::new()),
-            scheduler: Arc::new(Mutex::new(job_scheduler::JobScheduler::new())),
+            scheduler: Arc::new(Mutex::new(job_scheduler_ng::JobScheduler::new())),
         }
     }
 
@@ -61,7 +61,7 @@ where
     async fn register_job(
         &self,
         job_name: &str,
-        job: job_scheduler::Job<'a>,
+        job: job_scheduler_ng::Job<'a>,
     ) {
         let mut cron = self.scheduler.lock().await;
         let id = cron.add(job);
@@ -86,7 +86,7 @@ where
     {
         let run = Arc::new(run);
 
-        let job = job_scheduler::Job::new(schedule, {
+        let job = job_scheduler_ng::Job::new(schedule, {
             let job_name = job_name.to_string();
             let np = self.node_pool.clone();
 
@@ -131,7 +131,7 @@ where
     {
         let run = Arc::new(run);
 
-        let job = job_scheduler::Job::new(schedule, {
+        let job = job_scheduler_ng::Job::new(schedule, {
             let job_name = job_name.to_string();
             let np = Arc::clone(&self.node_pool);
             let run = Arc::clone(&run);

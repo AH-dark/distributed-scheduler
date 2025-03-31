@@ -1,4 +1,4 @@
-/// This is the main library file for the project.
+//! This is the main library file for the project.
 
 /// The `cron` module contains the `Cron` struct, which is the main entry point for the library,
 /// providing the ability to add and remove jobs.

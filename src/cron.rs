@@ -17,12 +17,12 @@ where
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error<E>
+pub enum Error<D>
 where
-    E: std::error::Error + Send + Sync + 'static,
+    D: Driver + Send + Sync + 'static,
 {
     #[error("node pool error: {0}")]
-    NodePool(#[from] node_pool::Error<E>),
+    NodePool(#[from] node_pool::Error<D>),
 }
 
 /// Run the scheduler in a separate task, return a Future
@@ -83,7 +83,7 @@ where
         job_name: &str,
         schedule: Schedule,
         run: F,
-    ) -> Result<(), Error<D::Error>>
+    ) -> Result<(), Error<D>>
     where
         F: 'static + Sync + Send + Fn(),
     {
@@ -127,7 +127,7 @@ where
         job_name: &str,
         schedule: Schedule,
         run: F,
-    ) -> Result<(), Error<D::Error>>
+    ) -> Result<(), Error<D>>
     where
         F: 'static + Sync + Send + Fn() -> Fut,
         Fut: Future<Output = ()> + Send,
@@ -171,7 +171,7 @@ where
     pub async fn remove_job(
         &self,
         job_name: &str,
-    ) -> Result<(), Error<D::Error>> {
+    ) -> Result<(), Error<D>> {
         if let Some(id) = self.jobs.lock().await.remove(job_name) {
             self.scheduler.lock().await.remove(id);
         }

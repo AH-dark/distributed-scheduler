@@ -43,14 +43,14 @@ where
 }
 
 #[derive(Debug, Error)]
-pub enum Error<E>
+pub enum Error<D>
 where
-    E: std::error::Error + Send + Sync + 'static,
+    D: Driver + Send + Sync,
 {
     #[error("No node available")]
     NoNodeAvailable,
     #[error("Driver error: {0}")]
-    DriverError(#[from] E),
+    DriverError(D::Error),
 }
 
 impl<D> NodePool<D>
@@ -58,15 +58,21 @@ where
     D: Driver + Send + Sync,
 {
     /// Create a new node pool with the given driver.
-    pub async fn new(mut driver: D) -> Result<Self, Error<D::Error>> {
-        driver.start().await?;
+    pub async fn new(mut driver: D) -> Result<Self, Error<D>> {
+        driver.start().await.map_err(Error::DriverError)?;
 
         // Update the hash ring
         let mut pre_nodes = Vec::new();
         let mut hash = hashring::HashRing::new();
         let state_lock = AtomicBool::new(false);
 
-        update_hash_ring::<D>(&mut pre_nodes, &state_lock, &mut hash, &driver.get_nodes().await?).await?;
+        update_hash_ring::<D>(
+            &mut pre_nodes,
+            &state_lock,
+            &mut hash,
+            &driver.get_nodes().await.map_err(Error::DriverError)?,
+        )
+        .await?;
 
         Ok(Self {
             node_id: driver.node_id(),
@@ -79,7 +85,7 @@ where
     }
 
     /// Start the node pool, blocking the current thread.
-    pub async fn start(self: Arc<Self>) -> Result<(), Error<D::Error>> {
+    pub async fn start(self: Arc<Self>) -> Result<(), Error<D>> {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
         let error_time = AtomicU8::new(0);
 
@@ -120,7 +126,7 @@ where
     pub(crate) async fn check_job_available(
         &self,
         job_name: &str,
-    ) -> Result<bool, Error<D::Error>> {
+    ) -> Result<bool, Error<D>> {
         let hash = self.hash.read().await;
         match hash.get(&job_name) {
             Some(node) if node == &self.node_id => Ok(true),
@@ -156,7 +162,7 @@ async fn update_hash_ring<D>(
     state_lock: &AtomicBool,
     hash: &mut hashring::HashRing<String>,
     nodes: &Vec<String>,
-) -> Result<(), Error<D::Error>>
+) -> Result<(), Error<D>>
 where
     D: Driver + Send + Sync,
 {

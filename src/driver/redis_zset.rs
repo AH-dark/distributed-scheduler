@@ -1,6 +1,9 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+use std::{
+    fmt::Debug,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 
 use redis::{aio::ConnectionLike, AsyncCommands};
@@ -9,7 +12,7 @@ use super::{utils, Driver};
 
 const DEFAULT_TIMEOUT: u64 = 3;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RedisZSetDriver<C>
 where
     C: ConnectionLike,
@@ -21,6 +24,23 @@ where
     started: Arc<AtomicBool>,
     timeout: u64,
     notify: Arc<tokio::sync::Notify>,
+}
+
+impl<C> Debug for RedisZSetDriver<C>
+where
+    C: ConnectionLike,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        f.debug_struct("RedisDriver")
+            .field("service_name", &self.service_name)
+            .field("node_id", &self.node_id)
+            .field("started", &self.started)
+            .field("timeout", &self.timeout)
+            .finish()
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

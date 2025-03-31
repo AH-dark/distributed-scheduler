@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Starting cron");
     let _cron = cron.clone();
-    tokio::spawn(async move { _cron.start().await });
+    tokio::spawn(async move { _cron.start().await.unwrap() });
 
     cron.add_job("job2", "* * * * * *".parse().unwrap(), || {
         tracing::info!("Running job 2: {}", chrono::Utc::now());

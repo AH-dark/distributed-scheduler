@@ -22,10 +22,12 @@ pub enum Error<D>
 where
     D: Driver + Send + Sync + 'static,
 {
+    #[error("schedule stopped")]
+    SchedulerStopped,
     #[error("job name already exists")]
     JobNameConflict,
     #[error("node pool error: {0}")]
-    NodePool(#[from] node_pool::Error<D>),
+    NodePool(node_pool::Error<D>),
 }
 
 /// Run the scheduler in a separate task, return a Future
@@ -52,13 +54,15 @@ where
     }
 
     /// Start the cron, blocking the current thread.
-    pub async fn start(&self) {
+    pub async fn start(&self) -> Result<(), Error<D>> {
         let np = self.node_pool.as_ref();
 
         tokio::select! {
-            _ = run_scheduler(self.scheduler.clone()) => {},
+            _ = run_scheduler(self.scheduler.clone()) => {
+                Err(Error::SchedulerStopped)
+            },
             Err(err) = np.start() => {
-                panic!("Failed to start node pool: {}", err);
+                Err(Error::NodePool(err))
             },
         }
     }

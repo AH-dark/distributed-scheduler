@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     tracing::info!("Starting cron");
-    cron.start().await;
+    cron.start().await?;
 
     Ok(())
 }

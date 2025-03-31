@@ -68,5 +68,5 @@ redis = { version = ">=0.26, <1.0", optional = true, features = ["tokio-comp"] }
 [dev-dependencies]
 tracing-subscriber = "0.3"
 redis-test = { version = ">= 0.7, <1.0", features = ["aio"] }
-redis = { version = ">=0.26, <1.0", features = ["tokio-comp"] }
+redis = { version = ">=0.26, <1.0", features = ["tokio-comp", "connection-manager"] }
 anyhow = "1.0"

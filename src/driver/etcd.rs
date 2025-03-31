@@ -140,7 +140,7 @@ impl Driver for EtcdDriver {
                     match watch_stream.message().await {
                         Ok(Some(resp)) => {
                             if resp.canceled() {
-                                log::warn!("Watch stream canceled: {:?}", resp);
+                                tracing::warn!("Watch stream canceled: {:?}", resp);
                                 break;
                             }
 
@@ -165,7 +165,7 @@ impl Driver for EtcdDriver {
 
         // register current node
         {
-            log::info!("Registering node: {}", self.node_id);
+            tracing::info!("Registering node: {}", self.node_id);
 
             // grant a lease for the node key
             let lease = client.lease_grant(self.lease_ttl, None).await?;

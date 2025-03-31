@@ -85,7 +85,7 @@ where
     }
 
     /// Start the node pool, blocking the current thread.
-    pub async fn start(self: Arc<Self>) -> Result<(), Error<D>> {
+    pub async fn start(&self) -> Result<(), Error<D>> {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
         let error_time = AtomicU8::new(0);
 
@@ -111,7 +111,7 @@ where
                     }
                     Err(_) => {
                         error_time.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                        log::error!("Failed to update hash ring");
+                        tracing::error!("Failed to update hash ring");
                     }
                 }
             }
@@ -167,11 +167,11 @@ where
     D: Driver + Send + Sync,
 {
     if equal_ring(nodes, pre_nodes) {
-        log::trace!("Nodes are equal, skipping update, nodes: {:?}", nodes);
+        tracing::trace!("Nodes are equal, skipping update, nodes: {:?}", nodes);
         return Ok(());
     }
 
-    log::info!(
+    tracing::info!(
         "Nodes detected, updating hash ring, pre_nodes: {:?}, now_nodes: {:?}",
         pre_nodes,
         nodes

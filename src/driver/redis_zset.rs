@@ -115,11 +115,11 @@ where
                 tokio::select! {
                     _ = interval.tick() => {
                         if let Err(e) = register_node(&service_name, &node_id, &mut con, chrono::Utc::now().timestamp()).await {
-                            log::error!("Failed to register node: {:?}", e);
+                            tracing::error!("Failed to register node: {:?}", e);
                         }
                     }
                     _ = shutdown_notify.notified() => {
-                        log::info!("Heartbeat task received shutdown signal");
+                        tracing::info!("Heartbeat task received shutdown signal");
                         break;
                     }
                 }

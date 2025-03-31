@@ -100,7 +100,7 @@ where
     async fn start(&mut self) -> Result<(), Self::Error> {
         // check if the driver has already started
         if self.started.load(std::sync::atomic::Ordering::SeqCst) {
-            log::warn!("Driver has already started");
+            tracing::warn!("Driver has already started");
             return Ok(());
         }
 
@@ -173,7 +173,7 @@ async fn heartbeat<C: ConnectionLike + Send + Sync>(
     let mut con = con;
     let mut error_time = 0;
 
-    log::debug!("Started heartbeat");
+    tracing::debug!("Started heartbeat");
 
     loop {
         // check if the driver has stopped
@@ -189,7 +189,7 @@ async fn heartbeat<C: ConnectionLike + Send + Sync>(
             .await
             .map_err(|e| {
                 error_time += 1;
-                log::error!("Failed to register node: {:?}", e);
+                tracing::error!("Failed to register node: {:?}", e);
             })
             .ok();
 
@@ -199,7 +199,7 @@ async fn heartbeat<C: ConnectionLike + Send + Sync>(
         }
     }
 
-    log::info!("Heartbeat stopped");
+    tracing::info!("Heartbeat stopped");
     Ok(())
 }
 

@@ -134,8 +134,9 @@ where
                         }
                     }
                     .instrument(tracing::info_span!(
+                        parent: None,
                         "job_run",
-                        otel.name = format!("Cronjob run: {}", job_name_trace),
+                        otel.name = format!("cronjob run: {}", job_name_trace),
                         job.name = job_name_trace,
                     )),
                 );
@@ -192,8 +193,9 @@ where
                         }
                     }
                     .instrument(tracing::info_span!(
+                        parent: None,
                         "job_run",
-                        otel.name = format!("Cronjob run: {}", job_name_trace),
+                        otel.name = format!("cronjob run: {}", job_name_trace),
                         job.name = job_name_trace,
                     )),
                 );

@@ -63,10 +63,10 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync"
 uuid = { version = "1", features = ["v4"] }
 
 etcd-client = { version = ">=0.14, <1.0", optional = true }
-redis = { version = ">=0.26, <1.0", optional = true, features = ["tokio-comp"] }
+redis = { version = ">=0.26, <1.8", optional = true, features = ["tokio-comp"] }
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
 redis-test = { version = ">= 0.7, <1.0", features = ["aio"] }
-redis = { version = ">=0.26, <1.0", features = ["tokio-comp", "connection-manager"] }
+redis = { version = ">=0.26, <1.8", features = ["tokio-comp", "connection-manager"] }
 anyhow = "1.0"
